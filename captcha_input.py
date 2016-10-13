@@ -6,6 +6,7 @@ def guess_captcha(browser):
     image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
 
     with browser.get_iframe(image_iframe.first['name']) as captcha_iframe, open('possible_categories.txt', 'a') as f:
+        f.write('New Run. Categories asked for in CAPTCHAs written below.\n')
         correct_score = 0
         total_guesses = 0 # not necessarily separate captchas, one captcha with new images added would count as two
         # image_checkboxes = captcha_iframe.find_by_xpath('//div[@class="rc-imageselect-checkbox"]')
@@ -18,9 +19,22 @@ def guess_captcha(browser):
                     image_checkboxes += captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j))
 
             checkbox_num = random.randint(1,5)
-            random_checkboxes = random.sample(image_checkboxes, checkbox_num)
+
+            # get a set of random positions so we know which ones we picked
+            random_positions = random.sample(range(len(image_checkboxes)), checkbox_num)
+
+            random_checkboxes = []
+            for pos in random_positions: # use these random positions to pick checkboxes (i.e. images)
+                random_checkboxes.append(image_checkboxes[pos])
+
+            # random_checkboxes = random.sample(image_checkboxes, checkbox_num)
             for checkbox in random_checkboxes:
                 checkbox.click()
+
+            # once we have a more intelligent method than random clicking,
+            # we should examine the checkboxes we previously clicked,
+            # and only examine those to determine which to click,
+            # rather than testing all the images again
 
             # verify_button = iframe.find_by_id('recaptcha-verify-button')
             verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
