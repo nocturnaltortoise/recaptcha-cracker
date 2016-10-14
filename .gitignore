@@ -1,3 +1,13 @@
+# Image data
+*.tar.gz
+svhn-*/
+cifar-*/
+101_ObjectCategories*/
+MNIST*/
+
+# Pycharm
+.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
