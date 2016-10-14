@@ -2,6 +2,7 @@ from splinter import Browser
 import random
 import time
 
+
 def guess_captcha(browser):
     image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
 
@@ -13,10 +14,16 @@ def guess_captcha(browser):
 
         categories = {}
         while True:
+            recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
             image_checkboxes = []
-            for i in range(1,4):
-                for j in range(1,4):
-                    image_checkboxes += captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j))
+            for i in range(1, 4): # these numbers should be calculated by how big the grid is for the captcha
+                for j in range(1, 4):
+                    image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
+                    if captcha_iframe.is_element_present_by_xpath(image_xpath):
+                        image_checkboxes += captcha_iframe.find_by_xpath(image_xpath)
+                    else:
+                        recaptcha_reload_button.click()
+                        continue
 
             checkbox_num = random.randint(1,5)
 
