@@ -14,14 +14,25 @@ def guess_captcha(browser):
 
         categories = {}
         while True:
-            recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
+
+            rows = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/child::tr')
+            cols = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/child::td')
+            print("row count: ", len(rows))
+            print("col count: ", len(cols))
+
+            # need to keep getting images and image urls until this batch of image urls is the same as the last run
+            # i.e. keep selecting images until the captcha stops replacing images
+
             image_checkboxes = []
-            for i in range(1, 4): # these numbers should be calculated by how big the grid is for the captcha
-                for j in range(1, 4):
-                    image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
-                    if captcha_iframe.is_element_present_by_xpath(image_xpath):
-                        image_checkboxes += captcha_iframe.find_by_xpath(image_xpath)
+            for i in range(1, len(rows)+1): # these numbers should be calculated by how big the grid is for the captcha
+                for j in range(1, len(cols)+1):
+                    checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
+                    image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'.format(i, j)
+                    image_urls = [image['src'] for image in captcha_iframe.find_by_xpath(image_xpath)]
+                    if captcha_iframe.is_element_present_by_xpath(checkbox_xpath):
+                        image_checkboxes += captcha_iframe.find_by_xpath(checkbox_xpath)
                     else:
+                        recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
                         recaptcha_reload_button.click()
                         continue
 
@@ -38,14 +49,15 @@ def guess_captcha(browser):
             for checkbox in random_checkboxes:
                 checkbox.click()
 
+            # store attributes of td images, if they change after these clicks,
+            # we pick some more to click from those
+
             # once we have a more intelligent method than random clicking,
             # we should examine the checkboxes we previously clicked,
             # and only examine those to determine which to click,
             # rather than testing all the images again
 
-            # verify_button = iframe.find_by_id('recaptcha-verify-button')
             verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
-            # verify_button = iframe.find_by_xpath('//div[@class="rc-button-default"]')
             record_captcha_question(captcha_iframe, f, categories)
             time.sleep(2)
             verify_button.first.click()
@@ -56,7 +68,7 @@ def guess_captcha(browser):
             if not_select_all_images_error and not_retry_error and not_select_more_images_error:
                 correct_score += 1
             total_guesses += 1
-            print("Total correct (probably not correct): {correct}".format(correct=correct_score))
+            print("Total possibly correct: {correct}".format(correct=correct_score))
             print("Total guesses: {guesses}".format(guesses=total_guesses))
             print("Percentage: {percent}".format(percent=float(correct_score)/total_guesses))
 
