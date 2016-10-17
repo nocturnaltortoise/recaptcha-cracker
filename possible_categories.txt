@@ -90,3 +90,11 @@ rivers
 New Run. Categories asked for in CAPTCHAs written below.
 store front
 street numbers
+New Run. Categories asked for in CAPTCHAs written below.
+street numbers
+New Run. Categories asked for in CAPTCHAs written below.
+street signs
+store front
+New Run. Categories asked for in CAPTCHAs written below.
+street signs
+a house
