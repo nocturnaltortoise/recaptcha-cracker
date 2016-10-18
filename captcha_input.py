@@ -4,13 +4,30 @@ import time
 import math
 
 
-def find_image_urls(rows, cols, captcha_iframe):
-    for i in range(rows):
-        for j in range(cols):
-            image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'.format(i, j)
-            image_urls = [image['src'] for image in captcha_iframe.find_by_xpath(image_xpath)]
+def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
+    if picked_positions:
+        image_urls = []
+        for position, i in enumerate(picked_positions):
+            # turn 1d array index into 2d position
+            x = position // row_count
+            y = position % row_count
 
-    return image_urls
+            # make sure counting starts from 1 not 0
+            if x == 0:
+                x += 1
+            if y == 0:
+                y += 1
+
+            changed_image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'.format(x, y)
+            if captcha_iframe.is_element_present_by_xpath(changed_image_xpath, wait_time=3):
+                image_url = captcha_iframe.find_by_xpath(changed_image_xpath)['src']
+                image_urls.append(image_url)
+    else:
+        image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div/div[1]/img'
+        if captcha_iframe.is_element_present_by_xpath(image_xpath, wait_time=3):
+            image_url = captcha_iframe.find_by_xpath(image_xpath)['src']
+
+    return image_url
 
 
 def pick_checkboxes_from_positions(random_positions, image_checkboxes):
@@ -35,8 +52,10 @@ def pick_random_checkboxes(image_checkboxes):
         # random_checkboxes = random.sample(image_checkboxes, checkbox_num)
         for checkbox in random_checkboxes:
             checkbox.click()
-
+    else:
+        print("image checkbox length:", len(image_checkboxes))
     return random_positions
+
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
     image_checkboxes = []
@@ -53,7 +72,7 @@ def get_image_checkboxes(rows, cols, captcha_iframe):
 def verify(captcha_iframe, f, categories, correct_score, total_guesses):
     verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
     record_captcha_question(captcha_iframe, f, categories)
-    # time.sleep(2)
+    time.sleep(2)
     verify_button.first.click()
 
     not_select_all_images_error = captcha_iframe.is_text_not_present('Please select all matching images.')
@@ -79,11 +98,12 @@ def guess_captcha(browser):
         categories = {}
         new_run = True
         while True:
-
             rows = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/child::tr')
             cols = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/child::td')
-            print("row count: ", len(rows))
-            print("col count: ", len(cols))
+            row_count = len(rows)
+            col_count = len(cols)
+            print("row count: ", row_count)
+            print("col count: ", col_count)
 
             # need to keep getting images and image urls until this batch of image urls is the same as the last run
             # i.e. keep selecting images until the captcha stops replacing images
@@ -97,11 +117,12 @@ def guess_captcha(browser):
             if new_run:
                 image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
-                image_urls = find_image_urls(len(rows), len(cols), captcha_iframe)
-
+                image_url = find_image_url(captcha_iframe)
+                print("image url: ", image_url)
                 picked_positions = pick_random_checkboxes(image_checkboxes)
                 print("picked these positions:", picked_positions)
-                new_image_urls = find_image_urls(len(rows), len(cols), captcha_iframe)
+                new_image_urls = find_image_url(captcha_iframe, picked_positions, row_count=row_count)
+                print("new image url: ", new_image_urls)
 
                 # print("original image urls: {0}, new image urls: {1}".format(image_urls, new_image_urls))
 
@@ -111,13 +132,14 @@ def guess_captcha(browser):
                 new_run = False
 
 
-            if set(image_urls) != set(new_image_urls):
+            if any(image_url != new_image_url for new_image_url in new_image_urls):
                 # comparing the urls for images seems to work in terms of detecting a change
 
                 print("set of images has changed")
                 # refresh the image checkboxes because images may have disappeared/appeared
-                
+
                 # if not new_run:
+                time.sleep(1)
                 new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
                 picked_positions = pick_random_checkboxes(pick_checkboxes_from_positions(picked_positions, new_image_checkboxes))
@@ -125,8 +147,8 @@ def guess_captcha(browser):
                 if not picked_positions:
                     verify(captcha_iframe, f, categories, correct_score, total_guesses)
                     new_run = True
-                image_urls = new_image_urls
-                new_image_urls = find_image_urls(len(rows), len(cols), captcha_iframe)
+                image_url = find_image_url(captcha_iframe)
+                new_image_urls = find_image_url(captcha_iframe, picked_positions, row_count=row_count)
             else:
                 verify(captcha_iframe, f, categories, correct_score, total_guesses)
                 new_run = True
