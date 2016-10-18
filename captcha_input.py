@@ -18,7 +18,8 @@ def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
             if y == 0:
                 y += 1
 
-            changed_image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'.format(x, y)
+            changed_image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'\
+                .format(x, y)
             if captcha_iframe.is_element_present_by_xpath(changed_image_xpath, wait_time=3):
                 image_url = captcha_iframe.find_by_xpath(changed_image_xpath)['src']
                 image_urls.append(image_url)
@@ -32,7 +33,7 @@ def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
 
 def pick_checkboxes_from_positions(random_positions, image_checkboxes):
     random_checkboxes = []
-    for pos in random_positions: # use these random positions to pick checkboxes (i.e. images)
+    for pos in random_positions:  # use these random positions to pick checkboxes (i.e. images)
         random_checkboxes.append(image_checkboxes[pos])
 
     # print(len(random_checkboxes))
@@ -59,7 +60,7 @@ def pick_random_checkboxes(image_checkboxes):
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
     image_checkboxes = []
-    for i in range(1, len(rows)+1): # these numbers should be calculated by how big the grid is for the captcha
+    for i in range(1, len(rows)+1):  # these numbers should be calculated by how big the grid is for the captcha
         for j in range(1, len(cols)+1):
             checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
 
@@ -92,7 +93,7 @@ def guess_captcha(browser):
     with browser.get_iframe(image_iframe.first['name']) as captcha_iframe, open('possible_categories.txt', 'a') as f:
         f.write('New Run. Categories asked for in CAPTCHAs written below.\n')
         correct_score = 0
-        total_guesses = 0 # not necessarily separate captchas, one captcha with new images added would count as two
+        total_guesses = 0  # not necessarily separate captchas, one captcha with new images added would count as two
         # image_checkboxes = captcha_iframe.find_by_xpath('//div[@class="rc-imageselect-checkbox"]')
 
         categories = {}
@@ -124,13 +125,9 @@ def guess_captcha(browser):
                 new_image_urls = find_image_url(captcha_iframe, picked_positions, row_count=row_count)
                 print("new image url: ", new_image_urls)
 
-                # print("original image urls: {0}, new image urls: {1}".format(image_urls, new_image_urls))
-
                 # store attributes of td images, if they change after these clicks,
                 # we pick some more to click from those
-                # new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
                 new_run = False
-
 
             if any(image_url != new_image_url for new_image_url in new_image_urls):
                 # comparing the urls for images seems to work in terms of detecting a change
@@ -142,7 +139,8 @@ def guess_captcha(browser):
                 time.sleep(1)
                 new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
-                picked_positions = pick_random_checkboxes(pick_checkboxes_from_positions(picked_positions, new_image_checkboxes))
+                picked_positions = pick_random_checkboxes(pick_checkboxes_from_positions(picked_positions,
+                                                                                         new_image_checkboxes))
                 print("picked these positions after click:", picked_positions)
                 if not picked_positions:
                     verify(captcha_iframe, f, categories, correct_score, total_guesses)
@@ -155,7 +153,8 @@ def guess_captcha(browser):
 
 
 def record_captcha_question(captcha_iframe, f, categories):
-    captcha_text = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect"]/div[2]/div[1]/div[1]/div[1]/strong').first['innerHTML']
+    iframe_xpath = '//*[@id="rc-imageselect"]/div[2]/div[1]/div[1]/div[1]/strong'
+    captcha_text = captcha_iframe.find_by_xpath(iframe_xpath).first['innerHTML']
 
     print("categories before:", categories)
     if captcha_text in categories:
