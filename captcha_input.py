@@ -2,6 +2,8 @@ from splinter import Browser
 import random
 import time
 import math
+import requests
+from PIL import Image
 
 
 def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
@@ -119,6 +121,17 @@ def guess_captcha(browser):
                 image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
                 image_url = find_image_url(captcha_iframe)
+
+                img = Image.open(requests.get(image_url, stream=True).raw)
+                img.save("test.jpg","JPEG")
+                # getting element is no longer attached to DOM errors with this?
+
+                # download the image using Pillow,
+                # split into several images based off td sizes?
+                # feed images to inception - later we may wish to at least train inception with different datasets
+                # get best guess back
+                # pick images with best guesses close to question
+
                 print("image url: ", image_url)
                 picked_positions = pick_random_checkboxes(image_checkboxes)
                 print("picked these positions:", picked_positions)
