@@ -4,6 +4,7 @@ import time
 import math
 import requests
 from PIL import Image
+import re
 
 
 def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
@@ -62,14 +63,19 @@ def pick_random_checkboxes(image_checkboxes):
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
     image_checkboxes = []
+    dimensions_divs = []
     for i in range(1, len(rows)+1):  # these numbers should be calculated by how big the grid is for the captcha
         for j in range(1, len(cols)+1):
             checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
+            dimensions_div_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div'.format(i, j)
 
             if captcha_iframe.is_element_present_by_xpath(checkbox_xpath):
                 image_checkboxes += captcha_iframe.find_by_xpath(checkbox_xpath)
 
-    return image_checkboxes
+            if captcha_iframe.is_element_present_by_xpath(dimensions_div_xpath):
+                dimensions_divs += captcha_iframe.find_by_xpath(dimensions_div_xpath)
+
+    return image_checkboxes, dimensions_divs
 
 
 def verify(captcha_iframe, f, categories, correct_score, total_guesses):
@@ -118,15 +124,35 @@ def guess_captcha(browser):
                 continue
 
             if new_run:
-                image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                image_checkboxes, dimensions_divs = get_image_checkboxes(rows, cols, captcha_iframe)
+
+                image_dimensions = []
+                dimension_number_regex = re.compile('[0-9]+')
+                for div in dimensions_divs:
+                    if div['style'] is not '':
+                        print(div['style'].split(';')[0:2])
+                        width, height = div['style'].split(';')[0:2]
+                        x = float(re.search(dimension_number_regex, width).group(0))
+                        y = float(re.search(dimension_number_regex, height).group(0))
+                        image_dimensions.append((x, y))
 
                 image_url = find_image_url(captcha_iframe)
 
                 img = Image.open(requests.get(image_url, stream=True).raw)
-                img.save("test.jpg","JPEG")
+                img.save("test.jpg", "JPEG")
+
+                for row in range(row_count):
+                    for col in range(col_count):
+                        width, height = image_dimensions[0]
+                        dimensions = (col * width, row * height, col * width + width, row * height + height)
+                        print(dimensions)
+                        individual_captcha_image = img.crop(dimensions)
+                        individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
+                # there's a difference between the div size and the size of the parts of the image
+                # size of the parts of the image are smaller
+
                 # getting element is no longer attached to DOM errors with this?
 
-                # download the image using Pillow,
                 # split into several images based off td sizes?
                 # feed images to inception - later we may wish to at least train inception with different datasets
                 # get best guess back
@@ -150,7 +176,7 @@ def guess_captcha(browser):
 
                 # if not new_run:
                 time.sleep(1)
-                new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                new_image_checkboxes, new_dimensions_divs = get_image_checkboxes(rows, cols, captcha_iframe)
 
                 picked_positions = pick_random_checkboxes(pick_checkboxes_from_positions(picked_positions,
                                                                                          new_image_checkboxes))
