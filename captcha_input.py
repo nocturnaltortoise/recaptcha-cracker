@@ -4,34 +4,26 @@ import time
 import math
 import requests
 from PIL import Image
-import re
+import os
+import glob
 
 
-def find_image_url(captcha_iframe, picked_positions=None, row_count=None):
-    if picked_positions:
+def find_image_url(captcha_iframe, image_checkboxes=None):
+    if image_checkboxes:
         image_urls = []
-        for position, i in enumerate(picked_positions):
-            # turn 1d array index into 2d position
-            x = position // row_count
-            y = position % row_count
-
-            # make sure counting starts from 1 not 0
-            if x == 0:
-                x += 1
-            if y == 0:
-                y += 1
-
+        for checkbox in image_checkboxes:
+            x, y = checkbox['position']
             changed_image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'\
                 .format(x, y)
             if captcha_iframe.is_element_present_by_xpath(changed_image_xpath, wait_time=3):
                 image_url = captcha_iframe.find_by_xpath(changed_image_xpath)['src']
                 image_urls.append(image_url)
+        return image_urls
     else:
         image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div/div[1]/img'
         if captcha_iframe.is_element_present_by_xpath(image_xpath, wait_time=3):
             image_url = captcha_iframe.find_by_xpath(image_xpath)['src']
-
-    return image_url
+        return image_url
 
 
 def pick_checkboxes_from_positions(random_positions, image_checkboxes):
@@ -55,32 +47,26 @@ def pick_random_checkboxes(image_checkboxes):
 
         # random_checkboxes = random.sample(image_checkboxes, checkbox_num)
         for checkbox in random_checkboxes:
-            checkbox.click()
-    else:
-        print("image checkbox length:", len(image_checkboxes))
+            checkbox['checkbox'].click()
+
     return random_positions
 
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
     image_checkboxes = []
-    dimensions_divs = []
     for i in range(1, len(rows)+1):  # these numbers should be calculated by how big the grid is for the captcha
         for j in range(1, len(cols)+1):
             checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
-            dimensions_div_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div'.format(i, j)
 
             if captcha_iframe.is_element_present_by_xpath(checkbox_xpath):
-                image_checkboxes += captcha_iframe.find_by_xpath(checkbox_xpath)
+                image_checkboxes.append({'checkbox': captcha_iframe.find_by_xpath(checkbox_xpath), 'position': (i, j)})
 
-            if captcha_iframe.is_element_present_by_xpath(dimensions_div_xpath):
-                dimensions_divs += captcha_iframe.find_by_xpath(dimensions_div_xpath)
-
-    return image_checkboxes, dimensions_divs
+    return image_checkboxes
 
 
-def verify(captcha_iframe, f, categories, correct_score, total_guesses):
+def verify(captcha_iframe, correct_score, total_guesses):
     verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
-    record_captcha_question(captcha_iframe, f, categories)
+
     time.sleep(2)
     verify_button.first.click()
 
@@ -93,6 +79,35 @@ def verify(captcha_iframe, f, categories, correct_score, total_guesses):
     print("Total possibly correct: {correct}".format(correct=correct_score))
     print("Total guesses: {guesses}".format(guesses=total_guesses))
     print("Percentage: {percent}".format(percent=float(correct_score)/total_guesses))
+
+
+def delete_old_images():
+    old_captcha_images = glob.glob('*captcha-*.jpg')
+    for image in old_captcha_images:
+        os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), image))
+
+
+def download_images(image_url, row_count, col_count, image_urls=None):
+    if image_urls:
+        delete_old_images()
+
+        for i, url in enumerate(image_urls):
+            img = Image.open(requests.get(url, stream=True).raw)
+            img.save("new-captcha-{0}.jpg".format(i), "JPEG")
+    else:
+        img = Image.open(requests.get(image_url, stream=True).raw)
+        img.save("original-captcha-image.jpg", "JPEG")
+
+        delete_old_images()
+
+        width = img.size[0] / col_count
+        height = img.size[1] / row_count
+
+        for row in range(row_count):
+            for col in range(col_count):
+                dimensions = (col * width, row * height, col * width + width, row * height + height)
+                individual_captcha_image = img.crop(dimensions)
+                individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
 
 
 def guess_captcha(browser):
@@ -124,70 +139,48 @@ def guess_captcha(browser):
                 continue
 
             if new_run:
-                image_checkboxes, dimensions_divs = get_image_checkboxes(rows, cols, captcha_iframe)
-
-                image_dimensions = []
-                dimension_number_regex = re.compile('[0-9]+')
-                for div in dimensions_divs:
-                    if div['style'] is not '':
-                        print(div['style'].split(';')[0:2])
-                        width, height = div['style'].split(';')[0:2]
-                        x = float(re.search(dimension_number_regex, width).group(0))
-                        y = float(re.search(dimension_number_regex, height).group(0))
-                        image_dimensions.append((x, y))
+                record_captcha_question(captcha_iframe, f, categories)
+                image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
                 image_url = find_image_url(captcha_iframe)
 
-                img = Image.open(requests.get(image_url, stream=True).raw)
-                img.save("test.jpg", "JPEG")
+                download_images(image_url, row_count, col_count)
 
-                for row in range(row_count):
-                    for col in range(col_count):
-                        width, height = image_dimensions[0]
-                        dimensions = (col * width, row * height, col * width + width, row * height + height)
-                        print(dimensions)
-                        individual_captcha_image = img.crop(dimensions)
-                        individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
-                # there's a difference between the div size and the size of the parts of the image
-                # size of the parts of the image are smaller
-
-                # getting element is no longer attached to DOM errors with this?
-
-                # split into several images based off td sizes?
+                # need to get new images as well as initial images
                 # feed images to inception - later we may wish to at least train inception with different datasets
                 # get best guess back
                 # pick images with best guesses close to question
 
-                print("image url: ", image_url)
                 picked_positions = pick_random_checkboxes(image_checkboxes)
-                print("picked these positions:", picked_positions)
-                new_image_urls = find_image_url(captcha_iframe, picked_positions, row_count=row_count)
-                print("new image url: ", new_image_urls)
+                new_image_urls = find_image_url(captcha_iframe, image_checkboxes)
 
-                # store attributes of td images, if they change after these clicks,
-                # we pick some more to click from those
+                print("Any differences? {0}"
+                      .format(any(image_url != new_image_url for new_image_url in new_image_urls)))
+
                 new_run = False
 
-            if any(image_url != new_image_url for new_image_url in new_image_urls):
-                # comparing the urls for images seems to work in terms of detecting a change
+            elif any(image_url != new_image_url for new_image_url in new_image_urls):
+                # this seems to have problems with detecting changes
 
                 print("set of images has changed")
                 # refresh the image checkboxes because images may have disappeared/appeared
 
-                # if not new_run:
                 time.sleep(1)
-                new_image_checkboxes, new_dimensions_divs = get_image_checkboxes(rows, cols, captcha_iframe)
+                new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
-                picked_positions = pick_random_checkboxes(pick_checkboxes_from_positions(picked_positions,
-                                                                                         new_image_checkboxes))
+                picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
+
+                download_images(image_url, row_count, col_count, new_image_urls)
+
+                picked_positions = pick_random_checkboxes(picked_checkboxes)
                 print("picked these positions after click:", picked_positions)
                 if not picked_positions:
-                    verify(captcha_iframe, f, categories, correct_score, total_guesses)
+                    verify(captcha_iframe, correct_score, total_guesses)
                     new_run = True
                 image_url = find_image_url(captcha_iframe)
-                new_image_urls = find_image_url(captcha_iframe, picked_positions, row_count=row_count)
+                new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
             else:
-                verify(captcha_iframe, f, categories, correct_score, total_guesses)
+                verify(captcha_iframe, correct_score, total_guesses)
                 new_run = True
 
 
