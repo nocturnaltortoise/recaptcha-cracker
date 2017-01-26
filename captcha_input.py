@@ -9,6 +9,7 @@ import glob
 
 
 def find_image_url(captcha_iframe, image_checkboxes=None):
+    print("Getting URLs.")
     if image_checkboxes:
         image_urls = []
         for checkbox in image_checkboxes:
@@ -36,6 +37,7 @@ def pick_checkboxes_from_positions(random_positions, image_checkboxes):
 
 
 def pick_random_checkboxes(image_checkboxes):
+    print("Picking random image checkboxes.")
     random_positions = None
     if len(image_checkboxes) != 1:
         checkbox_num = random.randint(1, math.ceil(len(image_checkboxes)/2))
@@ -53,6 +55,8 @@ def pick_random_checkboxes(image_checkboxes):
 
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
+    print("Getting image checkbox elements.")
+    print(len(rows), len(cols))
     image_checkboxes = []
     for i in range(1, len(rows)+1):  # these numbers should be calculated by how big the grid is for the captcha
         for j in range(1, len(cols)+1):
@@ -60,11 +64,13 @@ def get_image_checkboxes(rows, cols, captcha_iframe):
 
             if captcha_iframe.is_element_present_by_xpath(checkbox_xpath, wait_time=3):
                 image_checkboxes.append({'checkbox': captcha_iframe.find_by_xpath(checkbox_xpath), 'position': (i, j)})
-
+            else:
+                print("Can't find a checkbox at {0}, {1}".format(i, j))
     return image_checkboxes
 
 
 def verify(captcha_iframe, correct_score, total_guesses):
+    print("Clicking verify.")
     if captcha_iframe.is_element_present_by_id('recaptcha-verify-button', wait_time=3):
         verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
         verify_button.first.click()
@@ -87,6 +93,7 @@ def delete_old_images():
 
 
 def download_images(image_url, row_count, col_count, image_urls=None):
+    print("Downloading images.")
     if image_urls:
         delete_old_images()
 
@@ -111,7 +118,7 @@ def download_images(image_url, row_count, col_count, image_urls=None):
 def find_rows_and_cols(captcha_iframe):
     rows = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/child::tr')
     cols = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/child::td')
-
+    print("rows from find_rows_and_cols: {0}, cols: {1}".format(len(rows), len(cols)))
     return rows, cols
 
 
@@ -135,11 +142,13 @@ def guess_captcha(browser):
                 checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div'
 
                 if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
+                    print("Clicking reload because captcha iframe cannot be found.")
                     recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
                     recaptcha_reload_button.click()
                     continue
 
                 if new_run:
+                    print("New CAPTCHA.")
                     image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
                     image_url = find_image_url(captcha_iframe)
@@ -151,6 +160,7 @@ def guess_captcha(browser):
                     new_run = False
 
                 elif any(image_url != new_image_url for new_image_url in new_image_urls):
+                    print("Some images have changed but CAPTCHA hasn't.")
                     new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
 
                     picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
@@ -174,6 +184,7 @@ with Browser() as browser:
 
     try:
         with browser.get_iframe('undefined') as iframe:
+            print("Clicking initial checkbox.")
             captcha_checkbox = iframe.find_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]')
             captcha_checkbox.first.click()
 
