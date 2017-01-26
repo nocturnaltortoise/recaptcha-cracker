@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.org/"
+verify_ssl = true
+
+[packages]
+keras = "*"
+splinter = "*"
+selenium = "*"
+scikit-image = "*"
+tensorflow = "*"
+requests = "*"
+numpy = "*"
+pillow = "*"
