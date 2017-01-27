@@ -70,7 +70,8 @@ if os.path.exists('initial-conv-net.yaml'):
         if os.path.exists('initial-conv-net-weights.h5'):
             print("Loading weights from file.")
             loaded_model.load_weights('initial-conv-net-weights.h5')
-            compile_network(loaded_model)
+            epochs = 1
+            compile_network(loaded_model, epochs)
             evaluate_network(loaded_model)
         else:
             print("Model exists but weights do not, training network.")
@@ -79,25 +80,16 @@ if os.path.exists('initial-conv-net.yaml'):
             evaluate_network(trained_model)
 else:
     model = keras.models.Sequential()
-    model.add(keras.layers.Convolution2D(11, 11, 3, input_shape=(3, 32, 32), border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(32, 32, 3, input_shape=(3, 32, 32), border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
     # layer for filtering 2d images
     model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
     # input shape - 32x32 images, each with three channels (i.e. RGB)
     # model.add(keras.layers.Dropout(0.2))  # 20% dropout
-    model.add(keras.layers.Convolution2D(5, 5, 3, border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(32, 32, 3, border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
     model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
 
-    model.add(keras.layers.Convolution2D(5, 5, 3, border_mode='same', activation='relu',
-                                         W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(5, 5, 3, border_mode='same', activation='relu',
-                                         W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(5, 5, 3, border_mode='same', activation='relu',
-                                         W_constraint=keras.constraints.maxnorm(3)))
-
     model.add(keras.layers.Flatten())
-    model.add(keras.layers.Dense(2048, activation='relu', W_constraint=keras.constraints.maxnorm(3))) # fully connected layer
-    model.add(keras.layers.Dropout(0.5)) # 50% dropout
-    model.add(keras.layers.Dense(2048, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Dense(512, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
     model.add(keras.layers.Dropout(0.5))  # 50% dropout
     model.add(keras.layers.Dense(num_classes, activation='softmax'))
     # softmax layer as output so we can get probability distribution of classes

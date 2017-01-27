@@ -116,6 +116,7 @@ def download_images(image_url, row_count, col_count, image_urls=None):
                 individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
 
 def find_rows_and_cols(captcha_iframe):
+    time.sleep(1)
     rows = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/child::tr')
     cols = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/child::td')
     print("rows from find_rows_and_cols: {0}, cols: {1}".format(len(rows), len(cols)))
@@ -141,12 +142,13 @@ def guess_captcha(browser):
                 # i.e. keep selecting images until the captcha stops replacing images
                 checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div'
 
-                if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
-                    print("Clicking reload because captcha iframe cannot be found.")
-                    recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
-                    recaptcha_reload_button.click()
-                    continue
+                # if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
+                #     print("Clicking reload because captcha iframe cannot be found.")
+                #     recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
+                #     recaptcha_reload_button.click()
+                #     continue
 
+                # if new captcha, get checkboxes, download images, pick checkboxes
                 if new_run:
                     print("New CAPTCHA.")
                     image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
@@ -168,9 +170,12 @@ def guess_captcha(browser):
                     download_images(image_url, row_count, col_count, new_image_urls)
 
                     picked_positions = pick_random_checkboxes(picked_checkboxes)
+                    # if there's only been one picked, stop guessing to avoid constant guesses on one box
+                    # not necessary when the guessing is done by the neural net
                     if not picked_positions:
                         verify(captcha_iframe, correct_score, total_guesses)
                         new_run = True
+
                     image_url = find_image_url(captcha_iframe)
                     new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
                 else:
