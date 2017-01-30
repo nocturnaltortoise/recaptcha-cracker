@@ -1,6 +1,8 @@
 import tensorflow as tf
 import glob
 
+# attempts to load svhn images using tensorflow
+
 filenames = glob.glob('svhn-train/*.png')
 filename_queue = tf.train.string_input_producer(filenames)
 

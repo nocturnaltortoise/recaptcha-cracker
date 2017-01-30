@@ -6,6 +6,7 @@ import requests
 from PIL import Image
 import os
 import glob
+import cifar100nn
 
 
 def find_image_url(captcha_iframe, image_checkboxes=None):
@@ -56,7 +57,6 @@ def pick_random_checkboxes(image_checkboxes):
 
 def get_image_checkboxes(rows, cols, captcha_iframe):
     print("Getting image checkbox elements.")
-    print(len(rows), len(cols))
     image_checkboxes = []
     for i in range(1, len(rows)+1):  # these numbers should be calculated by how big the grid is for the captcha
         for j in range(1, len(cols)+1):
@@ -115,6 +115,15 @@ def download_images(image_url, row_count, col_count, image_urls=None):
                 individual_captcha_image = img.crop(dimensions)
                 individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
 
+
+def resize_images():
+    for infile in glob.glob('*.jpg'):
+        file, ext = os.path.splitext(infile)
+        image = Image.open(infile)
+        image = image.resize((32, 32))
+        image.save(file + "_32x32" + ext)
+
+
 def find_rows_and_cols(captcha_iframe):
     time.sleep(1)
     rows = captcha_iframe.find_by_xpath('//*[@id="rc-imageselect-target"]/table/tbody/child::tr')
@@ -123,64 +132,110 @@ def find_rows_and_cols(captcha_iframe):
     return rows, cols
 
 
+def get_captcha_query(captcha_iframe):
+    text_xpath = '//*[@id="rc-imageselect"]/div[2]/div[1]/div[1]/div[1]/strong'
+    if captcha_iframe.is_element_present_by_xpath(text_xpath, wait_time=3):
+        captcha_text = captcha_iframe.find_by_xpath(text_xpath).first['innerHTML']
+        return captcha_text
+
+
+def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, predicted_labels, query):
+    print(len(predicted_labels), len(predicted_word_labels))
+    matching_labels = [predicted_labels[i] for i in range(len(predicted_word_labels)) if predicted_word_labels[i] == query]
+    if not matching_labels:
+        return None
+    else:
+        matching_image_checkboxes = pick_checkboxes_from_positions(matching_labels, image_checkboxes)
+        return matching_image_checkboxes
+
+
+def click_checkboxes(checkboxes):
+    if checkboxes:
+        for checkbox in checkboxes:
+            checkbox['checkbox'].click()
+
+
+def reload(captcha_iframe):
+    if captcha_iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
+        recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
+        recaptcha_reload_button.first.click()
+
+
 def guess_captcha(browser):
     if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
         image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
 
-        with browser.get_iframe(image_iframe.first['name']) as captcha_iframe:
-            correct_score = 0
-            total_guesses = 0  # not necessarily separate captchas, one captcha with new images added would count as two
-            # image_checkboxes = captcha_iframe.find_by_xpath('//div[@class="rc-imageselect-checkbox"]')
+        correct_score = 0
+        total_guesses = 0  # not necessarily separate captchas, one captcha with new images added would count as two
+        # image_checkboxes = captcha_iframe.find_by_xpath('//div[@class="rc-imageselect-checkbox"]')
 
-            new_run = True
-            while True:
-                rows, cols = find_rows_and_cols(captcha_iframe)
-                row_count = len(rows)
-                col_count = len(cols)
+        new_run = True
+        while True:
+            if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
+                with browser.get_iframe(image_iframe.first['name']) as captcha_iframe:
+                    rows, cols = find_rows_and_cols(captcha_iframe)
+                    row_count = len(rows)
+                    col_count = len(cols)
 
-                # need to keep getting images and image urls until this batch of image urls is the same as the last run
-                # i.e. keep selecting images until the captcha stops replacing images
-                checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div'
+                    # need to keep getting images and image urls until this batch of image urls is the same as the last run
+                    # i.e. keep selecting images until the captcha stops replacing images
+                    # checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div'
 
-                # if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
-                #     print("Clicking reload because captcha iframe cannot be found.")
-                #     recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
-                #     recaptcha_reload_button.click()
-                #     continue
+                    # if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
+                    #     print("Clicking reload because captcha iframe cannot be found.")
+                    #     recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
+                    #     recaptcha_reload_button.click()
+                    #     continue
 
-                # if new captcha, get checkboxes, download images, pick checkboxes
-                if new_run:
-                    print("New CAPTCHA.")
-                    image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                    # if new captcha, get checkboxes, download images, pick checkboxes
+                    if new_run:
+                        print("New CAPTCHA.")
+                        image_url = find_image_url(captcha_iframe)
+                        download_images(image_url, row_count, col_count)
+                        resize_images()
+                        predicted_labels = cifar100nn.predict_image_classes()
+                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(predicted_labels)
+                        captcha_text = get_captcha_query(captcha_iframe)
+                        image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                        picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels,
+                                                                           predicted_labels, captcha_text)
 
-                    image_url = find_image_url(captcha_iframe)
-                    download_images(image_url, row_count, col_count)
+                        print(predicted_word_labels)
+                        if not picked_checkboxes:
+                            reload(captcha_iframe)
+                            new_run = True
+                        else:
+                            click_checkboxes(picked_checkboxes)
+                            new_run = False
 
-                    picked_positions = pick_random_checkboxes(image_checkboxes)
-                    new_image_urls = find_image_url(captcha_iframe, image_checkboxes)
+                        new_image_urls = find_image_url(captcha_iframe, image_checkboxes)
 
-                    new_run = False
+                    elif any(image_url != new_image_url for new_image_url in new_image_urls):
+                        print("Some images have changed but CAPTCHA hasn't.")
 
-                elif any(image_url != new_image_url for new_image_url in new_image_urls):
-                    print("Some images have changed but CAPTCHA hasn't.")
-                    new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                        download_images(image_url, row_count, col_count, new_image_urls)
 
-                    picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
+                        captcha_text = get_captcha_query(captcha_iframe)
+                        resize_images()
+                        predicted_labels = cifar100nn.predict_image_classes()
+                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(predicted_labels)
 
-                    download_images(image_url, row_count, col_count, new_image_urls)
+                        new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
+                        picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels,
+                                                                           predicted_labels, captcha_text)
+                        # picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
+                        print(predicted_word_labels)
+                        if picked_checkboxes:
+                            click_checkboxes(picked_checkboxes)
+                        else:
+                            verify(captcha_iframe, correct_score, total_guesses)
+                            new_run = True
 
-                    picked_positions = pick_random_checkboxes(picked_checkboxes)
-                    # if there's only been one picked, stop guessing to avoid constant guesses on one box
-                    # not necessary when the guessing is done by the neural net
-                    if not picked_positions:
+                        image_url = find_image_url(captcha_iframe)
+                        new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
+                    else:
                         verify(captcha_iframe, correct_score, total_guesses)
                         new_run = True
-
-                    image_url = find_image_url(captcha_iframe)
-                    new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
-                else:
-                    verify(captcha_iframe, correct_score, total_guesses)
-                    new_run = True
 
 
 with Browser() as browser:
