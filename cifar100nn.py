@@ -9,17 +9,18 @@ from PIL import Image
 import pickle
 
 
-def load_labels():
-    with open('datasets/cifar-100-python/meta', 'rb') as f:
-        label_names = pickle.load(f)['fine_label_names']
-        label_names.append('street numbers')
-        return label_names
-
-
+# def load_labels():
+#     with open('datasets/cifar-100-python/meta', 'rb') as f:
+#         label_names = pickle.load(f)['fine_label_names']
+#         label_names.append('street numbers')
+#         return label_names
+#
+#
 def convert_labels_to_label_names(labels):
-    names = load_labels()
+    names = ['street numbers', 'street signs', 'grass', 'store front']
     label_names = [names[label] for label in labels]
     return label_names
+
 
 def load_npy_data():
     print("Loading train dataset.")
@@ -35,14 +36,14 @@ def load_npy_data():
 
 
 def load_model():
-    if os.path.exists('initial-conv-net.yaml'):
+    if os.path.exists('specific-conv-net.yaml'):
         print("Loading model from file.")
-        with open('initial-conv-net.yaml', 'r') as f:
+        with open('specific-conv-net.yaml', 'r') as f:
             model_yaml = f.read()
             loaded_model = keras.models.model_from_yaml(model_yaml)
-            if os.path.exists('initial-conv-net-weights.h5'):
+            if os.path.exists('specific-conv-net-weights.h5'):
                 print("Loading weights from file.")
-                loaded_model.load_weights('initial-conv-net-weights.h5')
+                loaded_model.load_weights('specific-conv-net-weights.h5')
                 epochs = 25
                 model = compile_network(loaded_model, epochs)
     return model
@@ -52,7 +53,7 @@ def predict_image_classes():
     model = load_model()
     images = skimage.io.imread_collection('*_32x32.jpg')
     image_array = skimage.io.concatenate_images(images)
-    image_array = np.transpose(image_array, (0, 3, 1, 2)) # reorder to fit training data
+    # image_array = np.transpose(image_array, (0, 3, 1, 2)) # reorder to fit training data
 
     if model:
         predictions = model.predict_classes(image_array)
@@ -68,74 +69,76 @@ def compile_network(model, num_epochs):
     # print(model.summary())
     return model
 
+#
+# # keras.backend.set_image_dim_ordering('th')
+# seed = 7
+# np.random.seed(seed)
+#
+# (train_data, train_labels), (test_data, test_labels) = load_npy_data()
+# # (cifar_train_data, cifar_train_labels), (cifar_test_data, cifar_test_labels) = cifar100.load_data(label_mode='fine')
+# # print(cifar_train_data.shape, train_data.shape)
+#
+# normalised_train_data = train_data.astype('float32') / 255.0
+# normalised_test_data = test_data.astype('float32') / 255.0
+#
+# one_hot_train_labels = np_utils.to_categorical(train_labels)
+# one_hot_test_labels = np_utils.to_categorical(test_labels)
 
-def train_network(model, num_epochs):
-    keras.backend.set_image_dim_ordering('th')
-    seed = 7
-    np.random.seed(seed)
-
-    (train_data, train_labels), (test_data, test_labels) = load_npy_data()
-    # (cifar_train_data, cifar_train_labels), (cifar_test_data, cifar_test_labels) = cifar100.load_data(label_mode='fine')
-    # print(cifar_train_data.shape, train_data.shape)
-
-    normalised_train_data = train_data.astype('float32') / 255.0
-    normalised_test_data = test_data.astype('float32') / 255.0
-
-    one_hot_train_labels = np_utils.to_categorical(train_labels)
-    one_hot_test_labels = np_utils.to_categorical(test_labels)
-
-    print("Training network.")
-    model = compile_network(model, num_epochs)
-    model.fit(normalised_train_data, one_hot_train_labels, validation_data=(normalised_test_data, one_hot_test_labels), nb_epoch=num_epochs, batch_size=32)
-
-    model.save_weights('initial-conv-net-weights.h5')
-    return model
+#
+# def train_network(model, num_epochs):
+#     print("Training network.")
+#     model = compile_network(model, num_epochs)
+#     model.fit(normalised_train_data, one_hot_train_labels, validation_data=(normalised_test_data, one_hot_test_labels),
+#               nb_epoch=num_epochs, batch_size=32)
+#
+#     model.save_weights('specific-conv-net-weights.h5')
+#
+#
+# def evaluate_network(model):
+#     print("Evaluating network.")
+#     scores = model.evaluate(normalised_test_data, one_hot_test_labels, verbose=0)
+#     print(scores)
 
 
-def evaluate_network(model, normalised_test_data, one_hot_test_labels):
-    print("Evaluating network.")
-    scores = model.evaluate(normalised_test_data, one_hot_test_labels, verbose=0)
-    print(scores)
-
-
-def create_network(normalised_test_data, one_hot_test_labels):
-    if os.path.exists('initial-conv-net.yaml'):
-        print("Loading model from file.")
-        with open('initial-conv-net.yaml', 'r') as f:
-            model_yaml = f.read()
-            loaded_model = keras.models.model_from_yaml(model_yaml)
-            if os.path.exists('initial-conv-net-weights.h5'):
-                print("Loading weights from file.")
-                loaded_model.load_weights('initial-conv-net-weights.h5')
-                epochs = 25
-                compile_network(loaded_model, epochs)
-                evaluate_network(loaded_model, normalised_test_data, one_hot_test_labels)
-            else:
-                print("Model exists but weights do not, training network.")
-                epochs = 25
-                trained_model = train_network(loaded_model, epochs)
-                evaluate_network(trained_model, normalised_test_data, one_hot_test_labels)
-    else:
-        num_classes = one_hot_test_labels.shape[1]
-        model = keras.models.Sequential()
-        model.add(keras.layers.Convolution2D(32, 32, 3, input_shape=(3, 32, 32), border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
-        model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-
-        model.add(keras.layers.Convolution2D(32, 32, 3, border_mode='same', activation='relu', W_constraint=keras.constraints.maxnorm(3)))
-        model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-
-        model.add(keras.layers.Flatten())
-        model.add(keras.layers.Dense(512, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
-        model.add(keras.layers.Dropout(0.5))  # 50% dropout
-        model.add(keras.layers.Dense(num_classes, activation='softmax'))
-        # softmax layer as output so we can get probability distribution of classes
-
-        model_yaml = model.to_yaml()
-
-        with open('initial-conv-net.yaml', 'w') as f:
-            f.write(model_yaml)
-
-        epochs = 25
-        trained_model = train_network(model, epochs)
-        evaluate_network(trained_model)
+# if os.path.exists('specific-conv-net.yaml'):
+#     print("Loading model from file.")
+#     with open('specific-conv-net.yaml', 'r') as f:
+#         model_yaml = f.read()
+#         loaded_model = keras.models.model_from_yaml(model_yaml)
+#         if os.path.exists('specific-conv-net-weights.h5'):
+#             print("Loading weights from file.")
+#             loaded_model.load_weights('specific-conv-net-weights.h5')
+#             epochs = 25
+#             compile_network(loaded_model, epochs)
+#             evaluate_network(loaded_model)
+#         else:
+#             print("Model exists but weights do not, training network.")
+#             epochs = 25
+#             train_network(loaded_model, epochs)
+#             evaluate_network(loaded_model)
+# else:
+#     num_classes = one_hot_test_labels.shape[1]
+#     model = keras.models.Sequential()
+#     model.add(keras.layers.Convolution2D(32, 32, 3, input_shape=(32, 32, 3), border_mode='same', activation='relu',
+#                                          W_constraint=keras.constraints.maxnorm(3)))
+#     model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+#
+#     model.add(keras.layers.Convolution2D(32, 32, 3, border_mode='same', activation='relu',
+#                                          W_constraint=keras.constraints.maxnorm(3)))
+#     model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+#
+#     model.add(keras.layers.Flatten())
+#     model.add(keras.layers.Dense(512, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+#     model.add(keras.layers.Dropout(0.5))  # 50% dropout
+#     model.add(keras.layers.Dense(num_classes, activation='softmax'))
+#     # softmax layer as output so we can get probability distribution of classes
+#
+#     model_yaml = model.to_yaml()
+#
+#     with open('specific-conv-net.yaml', 'w') as f:
+#         f.write(model_yaml)
+#
+#     epochs = 25
+#     train_network(model, epochs)
+#     evaluate_network(model)
 

@@ -139,20 +139,18 @@ def get_captcha_query(captcha_iframe):
         return captcha_text
 
 
-def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, predicted_labels, query):
-    print(len(predicted_labels), len(predicted_word_labels))
-    matching_labels = [predicted_labels[i] for i in range(len(predicted_word_labels)) if predicted_word_labels[i] == query]
-    if not matching_labels:
-        return None
-    else:
-        matching_image_checkboxes = pick_checkboxes_from_positions(matching_labels, image_checkboxes)
-        return matching_image_checkboxes
+def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, query):
+    matching_labels = [i for i in range(len(predicted_word_labels)) if predicted_word_labels[i] == query]
+    print(predicted_word_labels, query)
+    matching_image_checkboxes = pick_checkboxes_from_positions(matching_labels, image_checkboxes)
+    return matching_image_checkboxes
 
 
 def click_checkboxes(checkboxes):
     if checkboxes:
         for checkbox in checkboxes:
-            checkbox['checkbox'].click()
+            if checkbox['checkbox'].visible:
+                checkbox['checkbox'].click()
 
 
 def reload(captcha_iframe):
@@ -189,23 +187,24 @@ def guess_captcha(browser):
 
                     # if new captcha, get checkboxes, download images, pick checkboxes
                     if new_run:
+                        total_guesses = 0
                         print("New CAPTCHA.")
                         image_url = find_image_url(captcha_iframe)
                         download_images(image_url, row_count, col_count)
                         resize_images()
-                        predicted_labels = cifar100nn.predict_image_classes()
-                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(predicted_labels)
+                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(cifar100nn.predict_image_classes())
                         captcha_text = get_captcha_query(captcha_iframe)
                         image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
-                        picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels,
-                                                                           predicted_labels, captcha_text)
+                        picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, captcha_text)
 
                         print(predicted_word_labels)
-                        if not picked_checkboxes:
+
+                        if not picked_checkboxes or total_guesses >= 4:
                             reload(captcha_iframe)
                             new_run = True
                         else:
                             click_checkboxes(picked_checkboxes)
+                            total_guesses += 1
                             new_run = False
 
                         new_image_urls = find_image_url(captcha_iframe, image_checkboxes)
@@ -217,16 +216,16 @@ def guess_captcha(browser):
 
                         captcha_text = get_captcha_query(captcha_iframe)
                         resize_images()
-                        predicted_labels = cifar100nn.predict_image_classes()
-                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(predicted_labels)
+                        predicted_word_labels = cifar100nn.convert_labels_to_label_names(cifar100nn.predict_image_classes())
 
                         new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
-                        picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels,
-                                                                           predicted_labels, captcha_text)
+                        picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels, captcha_text)
                         # picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
                         print(predicted_word_labels)
-                        if picked_checkboxes:
+
+                        if picked_checkboxes and total_guesses < 4:
                             click_checkboxes(picked_checkboxes)
+                            total_guesses += 1
                         else:
                             verify(captcha_iframe, correct_score, total_guesses)
                             new_run = True
