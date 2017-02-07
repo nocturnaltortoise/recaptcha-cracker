@@ -4,8 +4,9 @@ from keras.datasets import cifar100
 import numpy as np
 import skimage.io
 import glob
-import os.path
+import os
 from PIL import Image
+from sklearn.cross_validation import train_test_split
 
 
 def resize_images(path):
@@ -24,86 +25,81 @@ def colour_images(path):
             image = image.convert("RGB")
             image.save(file + ext)
 
-# print("resizing traffic signs")
-# resize_images('datasets/trafficsigns-test/*.ppm')
-# resize_images('datasets/trafficsigns-train/**/*.ppm')
-# print("resizing svhn")
-# resize_images('datasets/svhn-train/*.png')
-# resize_images('datasets/svhn-test/*.png')
-# print("resizing grass")
-# resize_images('datasets/grass/*.JPEG')
-# print("resizing storefront")
-# resize_images('datasets/storefront/*.JPEG')
-# colour_images('datasets/storefront/*_32x32.JPEG')
-#
-print("imread svhn")
+
+def create_labels_from_directories(path, num_images):
+    num_dirs = len(os.listdir(path))
+    labels = np.zeros(shape=(num_images,), dtype='uint8')
+    file_nums_list = []
+    for i, directory in enumerate(os.listdir(path)):
+        num_files = len([name for name in os.listdir(os.path.join(path, directory)) if os.path.isfile(os.path.join(path, directory, name)) and "_32x32" in name])
+
+        # dir_labels = np.ndarray(shape=(num_files,), dtype='uint8')
+        # dir_labels.fill(i)
+        # print(dir_labels.shape, dir_labels)
+        if i == 0:
+            labels[:num_files] = i
+            file_nums_list.append(num_files)
+            # print(labels)
+        else:
+            start = np.sum(file_nums_list)
+            file_nums_list.append(num_files)
+            end = np.sum(file_nums_list)
+            labels[start:end] = i
+            print(i)
+            print(labels[:start])
+            # print(labels)
+    total_current_labels = np.sum(file_nums_list)
+    print(len(np.unique(labels)))
+    return labels, total_current_labels, num_dirs
+
+
+# resize_images('datasets/selected_images/**/*')
+# print("colouring images")
+# colour_images('datasets/selected_images/**/*')
+
+print("loading main image set")
+outdoor_images = skimage.io.imread_collection('datasets/selected_images/**/*_32x32.jpg')
+print(outdoor_images[0].shape)
+
+print("making labels")
+labels, total_current_labels, current_num_classes = create_labels_from_directories('datasets/selected_images', len(outdoor_images))
+print(len(np.unique(labels)))
+
+print("loading svhn")
 svhn_train = skimage.io.imread_collection('datasets/svhn-train/*_32x32.png')
 svhn_test = skimage.io.imread_collection('datasets/svhn-test/*_32x32.png')
+svhn_train_labels = np.ndarray(shape=(len(svhn_train),), dtype='uint8')
+svhn_train_labels.fill(current_num_classes + 1)
+svhn_test_labels = np.ndarray(shape=(len(svhn_test),), dtype='uint8')
+svhn_test_labels.fill(current_num_classes + 1)
+print(svhn_train[0].shape)
 
-print("imread traffic")
+print("loading traffic signs")
 traffic_signs_train = skimage.io.imread_collection('datasets/trafficsigns-train/**/*_32x32.ppm')
 traffic_signs_test = skimage.io.imread_collection('datasets/trafficsigns-test/*_32x32.ppm')
+traffic_signs_train_labels = np.ndarray(shape=(len(traffic_signs_train),), dtype='uint8')
+traffic_signs_train_labels.fill(current_num_classes + 2)
+traffic_signs_test_labels = np.ndarray(shape=(len(traffic_signs_test),), dtype='uint8')
+traffic_signs_test_labels.fill(current_num_classes + 2)
+print(traffic_signs_train[0].shape)
 
-print("imread grass")
-grass = skimage.io.imread_collection('datasets/grass/*_32x32.JPEG')
-train_length = int(len(grass)*0.8)
-grass_train = grass[:train_length]
-grass_test = grass[train_length:]
+print("splitting train and test sets")
+train, test, labels_train, labels_test = train_test_split(outdoor_images, labels, test_size=0.2, random_state=123412)
 
-print("imread store front")
-store_fronts = skimage.io.imread_collection('datasets/storefront/*_32x32.JPEG')
-train_length = int(len(store_fronts)*0.8)
-store_fronts_train = store_fronts[:train_length]
-store_fronts_test = store_fronts[train_length:]
-#
-# print("concatenating")
-# train = np.concatenate((svhn_train, traffic_signs_train, grass_train, store_fronts_train), axis=0)
-# test = np.concatenate((svhn_test, traffic_signs_test, grass_test, store_fronts_test), axis=0)
-# print(train.shape, test.shape)
-#
-# np.save('datasets/train.npy', train)
-# np.save('datasets/test.npy', test)
+print("concatenating")
+train = np.concatenate((train, svhn_train, traffic_signs_train), axis=0)
+labels_train = np.concatenate((labels_train, svhn_train_labels, traffic_signs_train_labels), axis=0)
+test = np.concatenate((test, svhn_test, traffic_signs_test), axis=0)
+test_labels = np.concatenate((labels_test, svhn_test_labels, traffic_signs_test_labels), axis=0)
 
-# keras.backend.set_image_dim_ordering('th')
-# svhn_train = scipy.io.loadmat('datasets/train_32x32.mat')['X']
-# svhn_test = scipy.io.loadmat('datasets/test_32x32.mat')['X']
-# (cifar_train, cifar_train_labels), (cifar_test, cifar_test_labels) = cifar100.load_data(label_mode='fine')
-#
-# svhn_train = np.transpose(svhn_train, (3,2,0,1))
-# svhn_test = np.transpose(svhn_test, (3,2,0,1))
-#
-# # as all the svhn data just has a single label (street numbers),
-# # we give that a number 100 to fit with the 0-99 from cifar100
-svhn_train_labels = np.ndarray(shape=(len(svhn_train), 1), dtype='uint8')
-svhn_train_labels.fill(0)
-svhn_test_labels = np.ndarray(shape=(len(svhn_test), 1), dtype='uint8')
-svhn_test_labels.fill(0)
+print("creating validation sets")
+train, validation, labels_train, labels_validation = train_test_split(train, labels_train, test_size=0.2, random_state=34565)
 
-traffic_train_labels = np.ndarray(shape=(len(traffic_signs_train), 1), dtype='uint8')
-traffic_train_labels.fill(1)
-traffic_test_labels = np.ndarray(shape=(len(traffic_signs_test), 1), dtype='uint8')
-traffic_test_labels.fill(1)
-
-grass_train_labels = np.ndarray(shape=(len(grass_train), 1), dtype='uint8')
-grass_train_labels.fill(2)
-grass_test_labels = np.ndarray(shape=(len(grass_test), 1), dtype='uint8')
-grass_test_labels.fill(2)
-
-store_fronts_train_labels = np.ndarray(shape=(len(store_fronts_train), 1), dtype='uint8')
-store_fronts_train_labels.fill(3)
-store_fronts_test_labels = np.ndarray(shape=(len(store_fronts_test), 1), dtype='uint8')
-store_fronts_test_labels.fill(3)
-# 
-train_labels = np.concatenate((svhn_train_labels, traffic_train_labels, grass_train_labels, store_fronts_train_labels), axis=0)
-test_labels = np.concatenate((svhn_test_labels, traffic_test_labels, grass_test_labels, store_fronts_test_labels), axis=0)
-# 
-# #
-# # train = np.concatenate((svhn_train, cifar_train), axis=0)
-# # test = np.concatenate((svhn_test, cifar_test), axis=0)
-# #
-# # train_labels = np.concatenate((svhn_train_labels, cifar_train_labels), axis=0)
-# # test_labels = np.concatenate((svhn_test_labels, cifar_test_labels), axis=0)
-# #
-# #
-np.save('datasets/train_labels.npy', train_labels)
-np.save('datasets/test_labels.npy', test_labels)
+print(train.shape, test.shape, validation.shape, labels_train.shape, labels_test.shape, labels_validation.shape)
+print("saving files")
+np.save('datasets/train.npy', train)
+np.save('datasets/train_labels.npy', labels_train)
+np.save('datasets/test.npy', test)
+np.save('datasets/test_labels.npy', labels_test)
+np.save('datasets/validation.npy', validation)
+np.save('datasets/validation_labels.npy', labels_validation)
