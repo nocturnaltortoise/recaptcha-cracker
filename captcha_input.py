@@ -159,6 +159,13 @@ def reload(captcha_iframe):
         recaptcha_reload_button.first.click()
 
 
+def click_initial_checkbox():
+    with browser.get_iframe('undefined') as iframe:
+        print("Clicking initial checkbox.")
+        captcha_checkbox = iframe.find_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]')
+        captcha_checkbox.first.click()
+
+
 def guess_captcha(browser):
     if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
         image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
@@ -194,6 +201,7 @@ def guess_captcha(browser):
                         resize_images()
                         predicted_word_labels = cifar100nn.convert_labels_to_label_names(cifar100nn.predict_image_classes())
                         captcha_text = get_captcha_query(captcha_iframe)
+                        time.sleep(1)
                         image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
                         picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, captcha_text)
 
@@ -204,6 +212,12 @@ def guess_captcha(browser):
                             new_run = True
                         else:
                             click_checkboxes(picked_checkboxes)
+
+                            # connection_alert = browser.get_alert()
+                            # if connection_alert:
+                            #     connection_alert.accept()
+                            #     click_initial_checkbox()
+
                             total_guesses += 1
                             new_run = False
 
@@ -217,14 +231,20 @@ def guess_captcha(browser):
                         captcha_text = get_captcha_query(captcha_iframe)
                         resize_images()
                         predicted_word_labels = cifar100nn.convert_labels_to_label_names(cifar100nn.predict_image_classes())
-
+                        time.sleep(1)
                         new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
                         picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels, captcha_text)
                         # picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
                         print(predicted_word_labels)
 
-                        if picked_checkboxes and total_guesses < 4:
+                        if picked_checkboxes:
                             click_checkboxes(picked_checkboxes)
+
+                            # connection_alert = browser.get_alert()
+                            # if connection_alert:
+                            #     connection_alert.accept()
+                            #     click_initial_checkbox()
+
                             total_guesses += 1
                         else:
                             verify(captcha_iframe, correct_score, total_guesses)
@@ -242,10 +262,7 @@ with Browser() as browser:
     browser.visit(url)
 
     try:
-        with browser.get_iframe('undefined') as iframe:
-            print("Clicking initial checkbox.")
-            captcha_checkbox = iframe.find_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]')
-            captcha_checkbox.first.click()
+        click_initial_checkbox()
 
         if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
             guess_captcha(browser)

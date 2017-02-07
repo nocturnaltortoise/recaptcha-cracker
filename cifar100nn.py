@@ -9,22 +9,41 @@ from PIL import Image
 import pickle
 
 
-# def load_labels():
-#     with open('datasets/cifar-100-python/meta', 'rb') as f:
-#         label_names = pickle.load(f)['fine_label_names']
-#         label_names.append('street numbers')
-#         return label_names
-#
-#
 def convert_labels_to_label_names(labels):
     print(labels)
     selected_images_names = [folder for folder in os.listdir('datasets/selected_images/')]
     print(selected_images_names)
     other_names = ['street numbers', 'street signs']
     names = selected_images_names + other_names
-    print(names)
-    label_names = [names[label] for label in labels]
+    print(len(names))
+
+    # label_names = [names[label] for label in labels]
+    label_names = []
+    for label in labels:
+        if label == 39:
+            label_names.append(names[38])
+        else:
+            label_names.append(names[label])
+
+    label_categories = {
+        'house': 'a house',
+        'beach_house': 'a house',
+        'boathouse': 'a house',
+        'fastfood_restaurant': 'store front',
+        'gas_station': 'store front',
+        'general_store': 'store front',
+        'oast_house': 'a house',
+        'shopfront': 'store front',
+        'storefront': 'store front'
+    }
+
     print(labels, label_names)
+    for i, label_name in enumerate(label_names):
+        if label_name in label_categories:
+            label_names[i] = label_categories[label_name]
+
+    print(label_names)
+
     return label_names
 
 
@@ -37,6 +56,7 @@ def load_npy_data():
     train_labels = np.load('datasets/train_labels.npy')
     print("Loading test labels.")
     test_labels = np.load('datasets/test_labels.npy')
+    print(test_labels.shape)
     print("Loading validation dataset")
     validation = np.load('datasets/validation.npy')
     print("Loading validation labels.")
@@ -81,28 +101,29 @@ def compile_network(model, num_epochs):
 
 #
 # keras.backend.set_image_dim_ordering('th')
-seed = 7
-np.random.seed(seed)
-
-(train_data, train_labels), (test_data, test_labels), (validation_data, validation_labels) = load_npy_data()
-# # (cifar_train_data, cifar_train_labels), (cifar_test_data, cifar_test_labels) = cifar100.load_data(label_mode='fine')
-# # print(cifar_train_data.shape, train_data.shape)
+# seed = 7
+# np.random.seed(seed)
 #
-print("normalising train data")
-normalised_train_data = train_data.astype('float32') / 255.0
-print("normalising test data")
-normalised_test_data = test_data.astype('float32') / 255.0
-print("normalising validation data")
-normalised_validation_data = validation_data.astype('float32') / 255.0
-
-print("converting train labels to one hot")
-one_hot_train_labels = np_utils.to_categorical(train_labels)
-print(len(np.unique(train_labels)))
-print("converting test labels to one hot")
-one_hot_test_labels = np_utils.to_categorical(test_labels)
-print(len(np.unique(test_labels)))
-print("converting validation labels to one hot")
-one_hot_validation_labels = np_utils.to_categorical(validation_labels)
+# (train_data, train_labels), (test_data, test_labels), (validation_data, validation_labels) = load_npy_data()
+# # # (cifar_train_data, cifar_train_labels), (cifar_test_data, cifar_test_labels) = cifar100.load_data(label_mode='fine')
+# # # print(cifar_train_data.shape, train_data.shape)
+# #
+# print("normalising train data")
+# normalised_train_data = train_data.astype('float32') / 255.0
+# print("normalising test data")
+# normalised_test_data = test_data.astype('float32') / 255.0
+# print("normalising validation data")
+# normalised_validation_data = validation_data.astype('float32') / 255.0
+#
+# print("converting train labels to one hot")
+# one_hot_train_labels = np_utils.to_categorical(train_labels)
+# print(len(np.unique(train_labels)))
+# print("converting test labels to one hot")
+# one_hot_test_labels = np_utils.to_categorical(test_labels)
+# print(len(np.unique(test_labels)))
+# print(one_hot_test_labels.shape)
+# print("converting validation labels to one hot")
+# one_hot_validation_labels = np_utils.to_categorical(validation_labels)
 
 
 def train_network(model, num_epochs):
@@ -137,8 +158,8 @@ def evaluate_network(model):
 #             train_network(loaded_model, epochs)
 #             evaluate_network(loaded_model)
 # else:
-#     num_classes = one_hot_test_labels.shape[1]
-#     # the 2 is for the svhn and gtrsb datasets, both have a single label
+#     num_classes = 40
+#
 #     model = keras.models.Sequential()
 #     model.add(keras.layers.Convolution2D(32, 32, 3, input_shape=(32, 32, 3), border_mode='same', activation='relu',
 #                                          W_constraint=keras.constraints.maxnorm(3)))
