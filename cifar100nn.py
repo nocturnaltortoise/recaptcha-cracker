@@ -10,11 +10,11 @@ import pickle
 
 
 def convert_labels_to_label_names(labels):
-    print(labels)
-    selected_images_names = [folder for folder in os.listdir('datasets/selected_images/')]
-    print(selected_images_names)
-    other_names = ['street numbers', 'street signs']
-    names = selected_images_names + other_names
+    # print(labels)
+    # selected_images_names = [folder for folder in os.listdir('datasets/selected_images/')]
+    # print(selected_images_names)
+    # other_names = ['street numbers', 'street signs']
+    names = np.load('names.npy')
     print(len(names))
 
     # label_names = [names[label] for label in labels]
@@ -34,7 +34,8 @@ def convert_labels_to_label_names(labels):
         'general_store': 'store front',
         'oast_house': 'a house',
         'shopfront': 'store front',
-        'storefront': 'store front'
+        'storefront': 'store front',
+        'mansion': 'a house'
     }
 
     print(labels, label_names)
