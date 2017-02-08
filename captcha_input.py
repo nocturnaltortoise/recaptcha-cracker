@@ -207,7 +207,7 @@ def guess_captcha(browser):
 
                         print(predicted_word_labels)
 
-                        if not picked_checkboxes or total_guesses >= 4:
+                        if not picked_checkboxes:
                             reload(captcha_iframe)
                             new_run = True
                         else:
@@ -237,7 +237,7 @@ def guess_captcha(browser):
                         # picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
                         print(predicted_word_labels)
 
-                        if picked_checkboxes:
+                        if picked_checkboxes or total_guesses < 4:
                             click_checkboxes(picked_checkboxes)
 
                             # connection_alert = browser.get_alert()
@@ -246,14 +246,21 @@ def guess_captcha(browser):
                             #     click_initial_checkbox()
 
                             total_guesses += 1
-                        else:
+                        elif total_guesses == 4 and not picked_checkboxes:
                             verify(captcha_iframe, correct_score, total_guesses)
+                            new_run = True
+                        else:
+                            reload(captcha_iframe)
                             new_run = True
 
                         image_url = find_image_url(captcha_iframe)
                         new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
                     else:
-                        verify(captcha_iframe, correct_score, total_guesses)
+                        if total_guesses >= 1:
+                            reload(captcha_iframe)
+                        else:
+                            verify(captcha_iframe, correct_score, total_guesses)
+
                         new_run = True
 
 
