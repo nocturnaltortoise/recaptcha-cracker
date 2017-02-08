@@ -5,6 +5,7 @@ import time
 
 
 def reload(captcha_iframe):
+    time.sleep(1)
     if captcha_iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
         recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
         recaptcha_reload_button.first.click()
@@ -63,12 +64,9 @@ with Browser() as browser:
                     make_mistake(captcha_iframe, mistake_count)
                     mistake_count += 1
                     queries = record_captcha_question(captcha_iframe, queries)
-                    time.sleep(1)
                     reload(captcha_iframe)
                     save_queries(queries)
 
     except Exception as e:
         print(e)
         browser.screenshot('error')
-
-
