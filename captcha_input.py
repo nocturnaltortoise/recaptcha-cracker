@@ -229,7 +229,7 @@ def guess_captcha(browser):
 
                     print(predicted_word_labels)
 
-                    if not picked_checkboxes or total_guesses >= 4:
+                    if not picked_checkboxes:
                         reload(captcha_iframe)
                         new_run = True
                     else:
