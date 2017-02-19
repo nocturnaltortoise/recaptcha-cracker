@@ -10,28 +10,7 @@ import math
 import re
 
 
-def resize_images(path):
-    for infile in glob.glob(path):
-        if os.path.isfile(infile):
-            filename, ext = os.path.splitext(infile)
-            if "_32x32" not in filename:
-                print("resizing: {0}".format(filename + ext))
-                image = Image.open(infile)
-                image = image.resize((110, 110))
-                image.save(filename + "_110x110" + ext)
 
-
-def colour_images(path):
-    for infile in glob.glob(path):
-        if os.path.isfile(infile):
-            filename, ext = os.path.splitext(infile)
-            if "_110x110" in filename:
-                print("opening: {0}".format(filename + ext))
-                image = Image.open(infile)
-                if image.mode != "RGB":
-                    print("image not RGB, colouring")
-                    image = image.convert("RGB")
-                    image.save(filename + ext)
 
 
 def create_labels_from_directories(paths, num_images):

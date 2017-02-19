@@ -7,6 +7,31 @@ import skimage.io
 import glob
 import matplotlib.pyplot as plt
 from sklearn.cross_validation import train_test_split
+from PIL import Image
+
+
+def resize_images(paths):
+    for path in paths:
+        if os.path.isfile(path):
+            filename, ext = os.path.splitext(path)
+            if "_110x110" not in filename:
+                print("resizing: {0}".format(filename + ext))
+                image = Image.open(path)
+                image = image.resize((110, 110))
+                image.save(filename + "_110x110" + ext)
+
+
+def colour_images(paths):
+    for path in paths:
+        if os.path.isfile(path):
+            filename, ext = os.path.splitext(path)
+            if "_110x110" in filename:
+                print("opening: {0}".format(filename + ext))
+                image = Image.open(path)
+                if image.mode != "RGB":
+                    print("image not RGB, colouring")
+                    image = image.convert("RGB")
+                    image.save(filename + ext)
 
 
 def convert_labels_to_label_names(labels):
@@ -149,8 +174,22 @@ def normalise(image_data):
     return image_data.astype('float') / 255.0
 
 
-def process_filepaths(paths, root_path):
-    return [os.path.join(root_path,path) for path in paths]
+def process_filepaths(paths, root_path, remove_leading_slash=True):
+    if remove_leading_slash:
+        # filenames for training images have a leading slash, which causes problems on windows with os.path.join
+        return [os.path.join(root_path, path[1:]) for path in paths]
+    else:
+        return [os.path.join(root_path, path) for path in paths]
+
+
+def change_filepaths_after_resize(paths):
+    resize_paths = []
+    for path in paths:
+        name, ext = os.path.splitext(path)
+        resize_path = name + "_110x110" + ext
+        resize_paths.append(resize_path)
+
+    return resize_paths
 
 
 def next_batch(type, train_filepaths, train_labels, validation_filepaths, validation_labels, chunk_number, chunk_size):
@@ -158,11 +197,19 @@ def next_batch(type, train_filepaths, train_labels, validation_filepaths, valida
     print("loading {0} chunk {1}".format(type, chunk_number))
     if type == "train":
         chunk_filepaths = process_filepaths(train_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/data_256/')
+        print(chunk_filepaths)
+        resize_images(chunk_filepaths)
+        chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
+        colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
         chunk_labels = train_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
         yield chunk_images, chunk_labels
     elif type == "validation":
-        chunk_filepaths = process_filepaths(validation_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/val_256/')
+        chunk_filepaths = process_filepaths(validation_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
+        print(chunk_filepaths)
+        resize_images(chunk_filepaths)
+        chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
+        colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
         chunk_labels = validation_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
         yield chunk_images, chunk_labels
@@ -189,22 +236,24 @@ validation_labels = convert_to_one_hot(validation_labels)
 num_chunks = 769 # reasonable size that divides train and validation sets evenly
 train_size = len(train_files)
 validation_size = len(validation_files)
-train_chunk_size = int(train_size / num_chunks)
-validation_chunk_size = int(validation_size / num_chunks)
+# train_chunk_size = int(train_size / num_chunks)
+train_chunk_size = 32
+# validation_chunk_size = int(validation_size / num_chunks)
+validation_chunk_size = 32
 print(train_size, validation_size, train_chunk_size, validation_chunk_size)
 
-for i in range(1):
-    chunk_images, chunk_labels = next_batch("train", train_files, train_labels,
-                                            validation_files, validation_labels,
-                                            i, train_chunk_size)
+for i in range(2):
+    chunk_images, chunk_labels = next(next_batch("train", train_files, train_labels,
+                                                 validation_files, validation_labels,
+                                                 i, train_chunk_size))
 
-    train_chunk_images, train_chunk_labels, test_chunk_images, test_chunk_labels = train_test_split(chunk_images, chunk_labels, test_size=0.2, random_state=123412)
+    train_chunk_images, test_chunk_images, train_chunk_labels, test_chunk_labels = train_test_split(chunk_images, chunk_labels, test_size=0.2, random_state=123412)
 
-    val_chunk_images, val_chunk_labels = next_batch("validation", train_files, train_labels,
-                                                    validation_files, validation_labels,
-                                                    i, validation_chunk_size)
+    val_chunk_images, val_chunk_labels = next(next_batch("validation", train_files, train_labels,
+                                                         validation_files, validation_labels,
+                                                         i, validation_chunk_size))
 
-    print(train_chunk_images.shape, train_chunk_labels.shape, val_chunk_images.shape, val_chunk_labels.shape, test_chunk_images.shape, test_chunk_labels.shape)
+    print(train_chunk_images.shape, val_chunk_images.shape, test_chunk_images.shape)
 
 
 
