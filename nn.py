@@ -11,22 +11,25 @@ from PIL import Image
 
 
 def resize_images(paths):
+    print("resizing images")
     for path in paths:
         if os.path.isfile(path):
             filename, ext = os.path.splitext(path)
-            if "_110x110" not in filename:
-                print("resizing: {0}".format(filename + ext))
-                image = Image.open(path)
-                image = image.resize((110, 110))
-                image.save(filename + "_110x110" + ext)
+            if not os.path.exists(filename + "_110x110" + ext):
+                if "_110x110" not in filename:
+                    # print("resizing: {0}".format(filename + ext))
+                    image = Image.open(path)
+                    image = image.resize((110, 110))
+                    image.save(filename + "_110x110" + ext)
 
 
 def colour_images(paths):
+    print("colouring images")
     for path in paths:
         if os.path.isfile(path):
             filename, ext = os.path.splitext(path)
             if "_110x110" in filename:
-                print("opening: {0}".format(filename + ext))
+                # print("opening: {0}".format(filename + ext))
                 image = Image.open(path)
                 if image.mode != "RGB":
                     print("image not RGB, colouring")
@@ -159,7 +162,7 @@ def read_labels(path):
     with open(path, 'r') as f:
         for line in f:
             filename, label = line.split(" ")
-            labels.append(label)
+            labels.append(label.rstrip('\r\n'))
             filenames.append(filename)
 
     return filenames, labels
@@ -192,27 +195,110 @@ def change_filepaths_after_resize(paths):
     return resize_paths
 
 
-def next_batch(type, train_filepaths, train_labels, validation_filepaths, validation_labels, chunk_number, chunk_size):
-    # select a chunk of filepaths, load those images, and their labels, yield the chunk
-    print("loading {0} chunk {1}".format(type, chunk_number))
-    if type == "train":
-        chunk_filepaths = process_filepaths(train_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/data_256/')
-        print(chunk_filepaths)
+def create_network():
+    num_classes = 365
+
+    model = keras.models.Sequential()
+    model.add(keras.layers.Convolution2D(20, 5, 5,
+                                        input_shape=(110, 110, 3),
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Convolution2D(20, 3, 3,
+                                        border_mode='same',
+                                        activation='relu',
+                                        W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+
+    model.add(keras.layers.Flatten())
+    model.add(keras.layers.Dense(2048, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Dropout(0.5))  # 50% dropout
+    model.add(keras.layers.Dense(num_classes, activation='softmax'))
+    # softmax layer as output so we can get probability distribution of classes
+
+    # model_yaml = model.to_yaml()
+
+    # with open('model-6-conv-net.yaml', 'w') as f:
+    #     f.write(model_yaml)
+
+    return model
+
+
+def next_train_batch():
+    chunk_size = 32
+    for i in range(num_train_chunks):
+        print("loading train chunk {0}".format(i))
+        chunk_filepaths = process_filepaths(train_files[i * chunk_size:i * chunk_size + chunk_size], 'E:/datasets/data_256/')
         resize_images(chunk_filepaths)
         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
         colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-        chunk_labels = train_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
+        chunk_labels = train_labels[i * chunk_size:i * chunk_size + chunk_size]
         yield chunk_images, chunk_labels
-    elif type == "validation":
-        chunk_filepaths = process_filepaths(validation_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
-        print(chunk_filepaths)
+
+
+def next_validation_batch():
+    chunk_size = 20
+    for i in range(num_val_chunks):
+        print("loading validation chunk {0}".format(i))
+        chunk_filepaths = process_filepaths(validation_files[i * chunk_size:i * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
         resize_images(chunk_filepaths)
         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
         colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-        chunk_labels = validation_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
+        chunk_labels = validation_labels[i * chunk_size:i * chunk_size + chunk_size]
         yield chunk_images, chunk_labels
+
+
+# def next_batch(type, train_filepaths, train_labels, validation_filepaths, validation_labels, chunk_number, chunk_size):
+#     # select a chunk of filepaths, load those images, and their labels, yield the chunk
+#     print("loading {0} chunk {1}".format(type, chunk_number))
+#     if type == "train":
+#         chunk_filepaths = process_filepaths(train_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/data_256/')
+#         resize_images(chunk_filepaths)
+#         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
+#         colour_images(chunk_filepaths)
+#         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
+#         chunk_labels = train_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
+#         yield chunk_images, chunk_labels
+#     elif type == "validation":
+#         chunk_filepaths = process_filepaths(validation_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
+#         resize_images(chunk_filepaths)
+#         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
+#         colour_images(chunk_filepaths)
+#         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
+#         chunk_labels = validation_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
+#         yield chunk_images, chunk_labels
     # else:
     #     chunk_filepaths = test_filepaths[chunk_number * chunk_size:2 * chunk_number * chunk_size]
     #     chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
@@ -225,6 +311,7 @@ seed = 7
 np.random.seed(seed)
 
 train_files, train_labels = read_labels('../../datasets/places365_train_standard.txt')
+print(np.unique(train_labels), len(train_labels))
 train_labels = convert_to_one_hot(train_labels)
 
 validation_files, validation_labels = read_labels('../../datasets/places365_val.txt')
@@ -233,33 +320,50 @@ validation_labels = convert_to_one_hot(validation_labels)
 # test_files, test_labels = read_labels('../../datasets/places365_test.txt')
 # test_labels = convert_to_one_hot(test_labels)
 
-num_chunks = 769 # reasonable size that divides train and validation sets evenly
+num_train_chunks = 56386 # reasonable size that divides train set evenly
+num_val_chunks = 1825
 train_size = len(train_files)
 validation_size = len(validation_files)
-# train_chunk_size = int(train_size / num_chunks)
-train_chunk_size = 32
-# validation_chunk_size = int(validation_size / num_chunks)
-validation_chunk_size = 32
-print(train_size, validation_size, train_chunk_size, validation_chunk_size)
 
-for i in range(2):
-    chunk_images, chunk_labels = next(next_batch("train", train_files, train_labels,
-                                                 validation_files, validation_labels,
-                                                 i, train_chunk_size))
+# train_chunk_size = int(train_size / num_train_chunks)
+# validation_chunk_size = int(validation_size / num_val_chunks)
+# print(train_size, validation_size)
 
-    train_chunk_images, test_chunk_images, train_chunk_labels, test_chunk_labels = train_test_split(chunk_images, chunk_labels, test_size=0.2, random_state=123412)
-
-    val_chunk_images, val_chunk_labels = next(next_batch("validation", train_files, train_labels,
-                                                         validation_files, validation_labels,
-                                                         i, validation_chunk_size))
-
-    print(train_chunk_images.shape, val_chunk_images.shape, test_chunk_images.shape)
-
-
-
-
+model = create_network()
+model = compile_network(model, num_epochs)
 
 # for i in range(num_epochs):
+
+model.fit_generator(next_train_batch(), samples_per_epoch=int(train_size/num_epochs), nb_epoch=num_epochs, validation_data=next_validation_batch(), nb_val_samples=1460)
+
+# for i in range(num_epochs):
+#     for j in range(num_chunks):
+#         chunk_images, chunk_labels = next(next_batch("train", train_files, train_labels,
+#                                                      validation_files, validation_labels,
+#                                                      j, train_chunk_size))
+#
+#         train_chunk_images, test_chunk_images, train_chunk_labels, test_chunk_labels = train_test_split(chunk_images, chunk_labels, test_size=0.2, random_state=123412)
+#         print(train_chunk_images.shape, train_chunk_labels.shape)
+#         # model.train_on_batch(train_chunk_images, train_chunk_labels)
+#         val_chunk_images, val_chunk_labels = next(next_batch("validation", train_files, train_labels,
+#                                                          validation_files, validation_labels,
+#                                                          j, validation_chunk_size))
+#         print(val_chunk_images.shape, val_chunk_labels.shape)
+#
+#         model.fit(train_chunk_images, train_chunk_labels, batch_size=32, nb_epoch=1, validation_data=(val_chunk_images, val_chunk_labels))
+#     # if j < validation_size:
+#
+
+        # model.test_on_batch(val_chunk_images, val_chunk_labels)
+
+    # print(train_chunk_images.shape, val_chunk_images.shape, test_chunk_images.shape)
+
+
+
+
+
+
+
 #     if os.path.exists('model-6-conv-net.yaml'):
 #         print("Loading model from file.")
 #         with open('model-6-conv-net.yaml', 'r') as f:
@@ -274,56 +378,6 @@ for i in range(2):
 #             #     train_network(loaded_model, normalised_train_data, one_hot_train_labels)
 #     else:
 #         # test, test_labels = next(normalise_and_convert_to_one_hot_train(num_chunks))
-#         num_classes = 365
-#
-#
-#         model = keras.models.Sequential()
-#         model.add(keras.layers.Convolution2D(20, 5, 5,
-#                                             input_shape=(110, 110, 3),
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-#
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-#
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-#
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.Convolution2D(20, 3, 3,
-#                                             border_mode='same',
-#                                             activation='relu',
-#                                             W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-#
-#         model.add(keras.layers.Flatten())
-#         model.add(keras.layers.Dense(2048, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
-#         model.add(keras.layers.Dropout(0.5))  # 50% dropout
-#         model.add(keras.layers.Dense(num_classes, activation='softmax'))
-#         # softmax layer as output so we can get probability distribution of classes
 #
 #         model_yaml = model.to_yaml()
 #
