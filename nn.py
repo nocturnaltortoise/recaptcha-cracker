@@ -8,6 +8,7 @@ import glob
 import matplotlib.pyplot as plt
 from sklearn.cross_validation import train_test_split
 from PIL import Image
+import random
 
 
 def resize_images(paths):
@@ -200,48 +201,48 @@ def create_network():
 
     model = keras.models.Sequential()
     model.add(keras.layers.Convolution2D(20, 5, 5,
-                                        input_shape=(110, 110, 3),
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
+                                         input_shape=(110, 110, 3),
+                                         border_mode='same',
+                                         activation='relu',
+                                         W_constraint=keras.constraints.maxnorm(3)))
     model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
+                                         border_mode='same',
+                                         activation='relu',
+                                         W_constraint=keras.constraints.maxnorm(3)))
     model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
 
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
-
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                        border_mode='same',
-                                        activation='relu',
-                                        W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    #
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    #
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.Convolution2D(32, 3, 3,
+    #                                      border_mode='same',
+    #                                      activation='relu',
+    #                                      W_constraint=keras.constraints.maxnorm(3)))
+    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
 
     model.add(keras.layers.Flatten())
-    model.add(keras.layers.Dense(2048, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
+    model.add(keras.layers.Dense(512, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
     model.add(keras.layers.Dropout(0.5))  # 50% dropout
     model.add(keras.layers.Dense(num_classes, activation='softmax'))
     # softmax layer as output so we can get probability distribution of classes
@@ -264,6 +265,8 @@ def next_train_batch():
         colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
         chunk_labels = train_labels[i * chunk_size:i * chunk_size + chunk_size]
+        if i == 163:
+            print("filepath: {0}, label: {1}".format(chunk_filepaths[0], chunk_labels[0]))
         yield chunk_images, chunk_labels
 
 
@@ -311,7 +314,11 @@ seed = 7
 np.random.seed(seed)
 
 train_files, train_labels = read_labels('../../datasets/places365_train_standard.txt')
-print(np.unique(train_labels), len(train_labels))
+files_and_labels = list(zip(train_files, train_labels))
+random.shuffle(files_and_labels)
+train_files[:], train_labels[:] = zip(*files_and_labels)
+print(train_files[0], train_labels[0])
+# print(np.unique(train_labels), len(train_labels))
 train_labels = convert_to_one_hot(train_labels)
 
 validation_files, validation_labels = read_labels('../../datasets/places365_val.txt')
@@ -320,9 +327,9 @@ validation_labels = convert_to_one_hot(validation_labels)
 # test_files, test_labels = read_labels('../../datasets/places365_test.txt')
 # test_labels = convert_to_one_hot(test_labels)
 
-num_train_chunks = 56386 # reasonable size that divides train set evenly
 num_val_chunks = 1825
 train_size = len(train_files)
+num_train_chunks = int(train_size / 32)  # reasonable size that divides train set evenly
 validation_size = len(validation_files)
 
 # train_chunk_size = int(train_size / num_train_chunks)
@@ -336,6 +343,7 @@ model = compile_network(model, num_epochs)
 
 model.fit_generator(next_train_batch(), samples_per_epoch=int(train_size/num_epochs), nb_epoch=num_epochs, validation_data=next_validation_batch(), nb_val_samples=1460)
 
+model.save_weights('generator-model-conv-net-weights.h5')
 # for i in range(num_epochs):
 #     for j in range(num_chunks):
 #         chunk_images, chunk_labels = next(next_batch("train", train_files, train_labels,
