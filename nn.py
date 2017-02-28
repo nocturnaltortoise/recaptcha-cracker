@@ -9,33 +9,43 @@ import matplotlib.pyplot as plt
 from sklearn.cross_validation import train_test_split
 from PIL import Image
 import random
+import math
 
 
 def resize_images(paths):
     print("resizing images")
     for path in paths:
-        if os.path.isfile(path):
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
             filename, ext = os.path.splitext(path)
-            if not os.path.exists(filename + "_110x110" + ext):
+            if not os.path.exists(filename + "_110x110" + ext) or os.path.getsize(filename + "_110x110" + ext) == 0:
+                # if the file hasn't been resized or the resized version is corrupt (i.e. zero size)
                 if "_110x110" not in filename:
                     # print("resizing: {0}".format(filename + ext))
-                    image = Image.open(path)
-                    image = image.resize((110, 110))
-                    image.save(filename + "_110x110" + ext)
+                    try:
+                        image = Image.open(path)
+                        image = image.resize((110, 110))
+                        image.save(filename + "_110x110" + ext)
+                    except OSError:
+                        print("OSError caused by file at {0}".format(path))
+                        continue  # if OSError: cannot identify image file occurs despite above checks, skip the image
 
 
 def colour_images(paths):
     print("colouring images")
     for path in paths:
-        if os.path.isfile(path):
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
             filename, ext = os.path.splitext(path)
             if "_110x110" in filename:
                 # print("opening: {0}".format(filename + ext))
-                image = Image.open(path)
-                if image.mode != "RGB":
-                    print("image not RGB, colouring")
-                    image = image.convert("RGB")
-                    image.save(filename + ext)
+                try:
+                    image = Image.open(path)
+                    if image.mode != "RGB":
+                        print("image not RGB, colouring")
+                        image = image.convert("RGB")
+                        image.save(filename + ext)
+                except OSError:
+                    print("OSError caused by file at {0}".format(path))
+                    continue  # if OSError: cannot identify image file occurs despite above checks, skip the image
 
 
 def convert_labels_to_label_names(labels):
@@ -89,7 +99,7 @@ def load_model():
 
 def predict_image_classes():
     model = load_model()
-    images = skimage.io.imread_collection('*_32x32.jpg')
+    images = skimage.io.imread_collection('*_110x110.jpg')
     image_array = skimage.io.concatenate_images(images)
     # image_array = np.transpose(image_array, (0, 3, 1, 2)) # reorder to fit training data
 
@@ -148,10 +158,11 @@ def accuracy_loss_graph(history):
 
 def compile_network(model, num_epochs):
     print("Compiling network.")
-    learning_rate = 0.01
+    learning_rate = 0.1
     decay = learning_rate / num_epochs
-    sgd = keras.optimizers.SGD(lr=learning_rate, momentum=0.9, decay=decay, nesterov=False)
-    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    # decay = 0.5
+    sgd = keras.optimizers.SGD(lr=learning_rate, momentum=0.9, decay=1e-6, nesterov=True)
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
     # print(model.summary())
     return model
 
@@ -163,7 +174,7 @@ def read_labels(path):
     with open(path, 'r') as f:
         for line in f:
             filename, label = line.split(" ")
-            labels.append(label.rstrip('\r\n'))
+            labels.append(int(label.rstrip('\r\n')))
             filenames.append(filename)
 
     return filenames, labels
@@ -175,77 +186,79 @@ def convert_to_one_hot(labels):
 
 
 def normalise(image_data):
+    # image_data = image_data.astype('float') - np.mean(image_data, axis=0)  # subtract mean
+    # image_data = image_data / np.std(image_data, axis=0)  # divide by standard deviation
     return image_data.astype('float') / 255.0
 
 
 def process_filepaths(paths, root_path, remove_leading_slash=True):
+    new_paths = []
     if remove_leading_slash:
+        for path in paths:
+            full_path = os.path.join(root_path, path[1:])
+            if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
+                new_paths.append(full_path)
         # filenames for training images have a leading slash, which causes problems on windows with os.path.join
-        return [os.path.join(root_path, path[1:]) for path in paths]
     else:
-        return [os.path.join(root_path, path) for path in paths]
+        for path in paths:
+            full_path = os.path.join(root_path, path)
+            if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
+                new_paths.append(full_path)
+
+    return new_paths
 
 
 def change_filepaths_after_resize(paths):
     resize_paths = []
     for path in paths:
-        name, ext = os.path.splitext(path)
-        resize_path = name + "_110x110" + ext
-        resize_paths.append(resize_path)
+        if "_110x110" not in path:
+            name, ext = os.path.splitext(path)
+            path = name + "_110x110" + ext
+        resize_paths.append(path)
 
     return resize_paths
 
 
 def create_network():
-    num_classes = 365
-
+    num_classes = train_labels.shape[1]
+    img_input = (110, 110, 3)
     model = keras.models.Sequential()
-    model.add(keras.layers.Convolution2D(20, 5, 5,
-                                         input_shape=(110, 110, 3),
-                                         border_mode='same',
-                                         activation='relu',
-                                         W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Convolution2D(20, 3, 3,
-                                         border_mode='same',
-                                         activation='relu',
-                                         W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    # Block 1
+    model.add(keras.layers.Convolution2D(32, 3, 3, input_shape=img_input, activation='relu', border_mode='same', name='block1_conv1'))
+    model.add(keras.layers.Convolution2D(32, 3, 3, activation='relu', border_mode='same', name='block1_conv2'))
+    model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool'))
 
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    # # Block 2
+    # model.add(keras.layers.Convolution2D(128, 3, 3, activation='relu', border_mode='same', name='block2_conv1'))
+    # model.add(keras.layers.Convolution2D(128, 3, 3, activation='relu', border_mode='same', name='block2_conv2'))
+    # model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool'))
     #
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    # # Block 3
+    # model.add(keras.layers.Convolution2D(256, 3, 3, activation='relu', border_mode='same', name='block3_conv1'))
+    # model.add(keras.layers.Convolution2D(256, 3, 3, activation='relu', border_mode='same', name='block3_conv2'))
+    # model.add(keras.layers.Convolution2D(256, 3, 3, activation='relu', border_mode='same', name='block3_conv3'))
+    # model.add(keras.layers.Convolution2D(256, 3, 3, activation='relu', border_mode='same', name='block3_conv4'))
+    # model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool'))
     #
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.Convolution2D(32, 3, 3,
-    #                                      border_mode='same',
-    #                                      activation='relu',
-    #                                      W_constraint=keras.constraints.maxnorm(3)))
-    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2)))
+    # # Block 4
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block4_conv1'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block4_conv2'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block4_conv3'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block4_conv4'))
+    # model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool'))
+    #
+    # # Block 5
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block5_conv1'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block5_conv2'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block5_conv3'))
+    # model.add(keras.layers.Convolution2D(512, 3, 3, activation='relu', border_mode='same', name='block5_conv4'))
+    # model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool'))
 
-    model.add(keras.layers.Flatten())
-    model.add(keras.layers.Dense(512, activation='relu', W_constraint=keras.constraints.maxnorm(3)))
-    model.add(keras.layers.Dropout(0.5))  # 50% dropout
-    model.add(keras.layers.Dense(num_classes, activation='softmax'))
-    # softmax layer as output so we can get probability distribution of classes
+    # Classification block
+    model.add(keras.layers.Flatten(name='flatten'))
+    model.add(keras.layers.Dense(512, activation='relu', name='fc1'))
+    # model.add(keras.layers.Dense(4096, activation='relu', name='fc2'))
+    model.add(keras.layers.Dense(num_classes, activation='softmax', name='predictions'))
 
     # model_yaml = model.to_yaml()
 
@@ -256,94 +269,80 @@ def create_network():
 
 
 def next_train_batch():
-    chunk_size = 32
-    for i in range(num_train_chunks):
-        print("loading train chunk {0}".format(i))
-        chunk_filepaths = process_filepaths(train_files[i * chunk_size:i * chunk_size + chunk_size], 'E:/datasets/data_256/')
+    chunk_size = 23
+    # for i in range(num_train_chunks):
+    i = 0
+    while True:
+        print("loading train chunk {0}".format(i / chunk_size))
+        chunk_filepaths = process_filepaths(train_files[i:i + chunk_size], 'E:/datasets/data_256/')
         resize_images(chunk_filepaths)
         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
         colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-        chunk_labels = train_labels[i * chunk_size:i * chunk_size + chunk_size]
-        if i == 163:
-            print("filepath: {0}, label: {1}".format(chunk_filepaths[0], chunk_labels[0]))
+        chunk_labels = train_labels[i:i + chunk_size]
         yield chunk_images, chunk_labels
+        i += chunk_size
+        if i + chunk_size > train_size:
+            i = 0
 
 
 def next_validation_batch():
     chunk_size = 20
-    for i in range(num_val_chunks):
+    # for i in range(num_val_chunks):
+    i = 0
+    while True:
         print("loading validation chunk {0}".format(i))
-        chunk_filepaths = process_filepaths(validation_files[i * chunk_size:i * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
+        chunk_filepaths = process_filepaths(validation_files[i:i + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
         resize_images(chunk_filepaths)
         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
         colour_images(chunk_filepaths)
         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-        chunk_labels = validation_labels[i * chunk_size:i * chunk_size + chunk_size]
+        chunk_labels = validation_labels[i:i + chunk_size]
         yield chunk_images, chunk_labels
+        i += chunk_size
+        if i + chunk_size > validation_size:
+            i = 0
 
 
-# def next_batch(type, train_filepaths, train_labels, validation_filepaths, validation_labels, chunk_number, chunk_size):
-#     # select a chunk of filepaths, load those images, and their labels, yield the chunk
-#     print("loading {0} chunk {1}".format(type, chunk_number))
-#     if type == "train":
-#         chunk_filepaths = process_filepaths(train_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/data_256/')
-#         resize_images(chunk_filepaths)
-#         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
-#         colour_images(chunk_filepaths)
-#         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-#         chunk_labels = train_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
-#         yield chunk_images, chunk_labels
-#     elif type == "validation":
-#         chunk_filepaths = process_filepaths(validation_filepaths[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size], 'E:/datasets/val_256/', remove_leading_slash=False)
-#         resize_images(chunk_filepaths)
-#         chunk_filepaths = change_filepaths_after_resize(chunk_filepaths)
-#         colour_images(chunk_filepaths)
-#         chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-#         chunk_labels = validation_labels[chunk_number * chunk_size:chunk_number * chunk_size + chunk_size]
-#         yield chunk_images, chunk_labels
-    # else:
-    #     chunk_filepaths = test_filepaths[chunk_number * chunk_size:2 * chunk_number * chunk_size]
-    #     chunk_images = normalise(skimage.io.imread_collection(chunk_filepaths).concatenate())
-    #     chunk_labels = test_labels[chunk_number * chunk_size:2 * chunk_number * chunk_size]
-    #     yield chunk_images, chunk_labels
+num_epochs = 46
 
-num_epochs = 25
-
-seed = 7
-np.random.seed(seed)
+# seed = 123124
+# np.random.seed(seed)
 
 train_files, train_labels = read_labels('../../datasets/places365_train_standard.txt')
-files_and_labels = list(zip(train_files, train_labels))
-random.shuffle(files_and_labels)
-train_files[:], train_labels[:] = zip(*files_and_labels)
-print(train_files[0], train_labels[0])
-# print(np.unique(train_labels), len(train_labels))
+train_files, test_files, train_labels, test_labels = train_test_split(train_files, train_labels, test_size=0.2, random_state=2134712)
 train_labels = convert_to_one_hot(train_labels)
+
+# # files_and_labels = list(zip(train_files, train_labels))
+# # random.shuffle(files_and_labels)
+# # train_files[:], train_labels[:] = zip(*files_and_labels)
 
 validation_files, validation_labels = read_labels('../../datasets/places365_val.txt')
 validation_labels = convert_to_one_hot(validation_labels)
-
-# test_files, test_labels = read_labels('../../datasets/places365_test.txt')
-# test_labels = convert_to_one_hot(test_labels)
-
-num_val_chunks = 1825
+# # validation_labels = np.array(validation_labels)
+# # test_files, test_labels = read_labels('../../datasets/places365_test.txt')
+# # test_labels = convert_to_one_hot(test_labels)
+#
+#
 train_size = len(train_files)
-num_train_chunks = int(train_size / 32)  # reasonable size that divides train set evenly
+print(train_size)
+# num_train_chunks = int(train_size / 23) * num_epochs # reasonable size that divides train set evenly
 validation_size = len(validation_files)
-
-# train_chunk_size = int(train_size / num_train_chunks)
-# validation_chunk_size = int(validation_size / num_val_chunks)
-# print(train_size, validation_size)
-
+# num_val_chunks = validation_size
+#
+# # train_chunk_size = int(train_size / num_train_chunks)
+# # validation_chunk_size = int(validation_size / num_val_chunks)
+# # print(train_size, validation_size)
+#
 model = create_network()
 model = compile_network(model, num_epochs)
+#
+tensorboard = keras.callbacks.TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=False)
+checkpointer = keras.callbacks.ModelCheckpoint(filepath="generator-model-conv-net-weights.h5", verbose=1, save_best_only=True)
+model.fit_generator(next_train_batch(), samples_per_epoch=int(train_size / (num_epochs / 2)), nb_epoch=num_epochs, validation_data=next_validation_batch(), nb_val_samples=int(validation_size / (num_epochs / 2)), callbacks=[checkpointer, tensorboard])
+#
 
-# for i in range(num_epochs):
-
-model.fit_generator(next_train_batch(), samples_per_epoch=int(train_size/num_epochs), nb_epoch=num_epochs, validation_data=next_validation_batch(), nb_val_samples=1460)
-
-model.save_weights('generator-model-conv-net-weights.h5')
+# model.save_weights('generator-model-conv-net-weights.h5')
 # for i in range(num_epochs):
 #     for j in range(num_chunks):
 #         chunk_images, chunk_labels = next(next_batch("train", train_files, train_labels,
@@ -359,18 +358,6 @@ model.save_weights('generator-model-conv-net-weights.h5')
 #         print(val_chunk_images.shape, val_chunk_labels.shape)
 #
 #         model.fit(train_chunk_images, train_chunk_labels, batch_size=32, nb_epoch=1, validation_data=(val_chunk_images, val_chunk_labels))
-#     # if j < validation_size:
-#
-
-        # model.test_on_batch(val_chunk_images, val_chunk_labels)
-
-    # print(train_chunk_images.shape, val_chunk_images.shape, test_chunk_images.shape)
-
-
-
-
-
-
 
 #     if os.path.exists('model-6-conv-net.yaml'):
 #         print("Loading model from file.")
