@@ -4,9 +4,11 @@ verify_ssl = true
 
 [packages]
 keras = "*"
+scikit-learn = "*"
 splinter = "*"
 selenium = "*"
 scikit-image = "*"
+matplotlib = "*"
 h5py = "*"
 tensorflow = "*"
 requests = "*"

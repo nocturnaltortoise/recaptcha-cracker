@@ -206,14 +206,6 @@ def guess_captcha(browser):
 
                 # need to keep getting images and image urls until this batch of image urls is the same as the last run
                 # i.e. keep selecting images until the captcha stops replacing images
-                # checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[1]/td[1]/div'
-
-                # if captcha_iframe.is_element_not_present_by_xpath(checkbox_xpath, wait_time=3):
-                #     print("Clicking reload because captcha iframe cannot be found.")
-                #     recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
-                #     recaptcha_reload_button.click()
-                #     continue
-
 
                 # if new captcha, get checkboxes, download images, pick checkboxes
                 if new_run:
@@ -235,11 +227,6 @@ def guess_captcha(browser):
                     else:
                         click_checkboxes(picked_checkboxes)
 
-                        # connection_alert = browser.get_alert()
-                        # if connection_alert:
-                        #     connection_alert.accept()
-                        #     click_initial_checkbox()
-
                         total_guesses += 1
                         new_run = False
 
@@ -256,16 +243,10 @@ def guess_captcha(browser):
                     predicted_word_labels = nn.convert_labels_to_label_names(nn.predict_image_classes())
                     new_image_checkboxes = get_image_checkboxes(rows, cols, captcha_iframe)
                     picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels, captcha_text)
-                    # picked_checkboxes = pick_checkboxes_from_positions(picked_positions, new_image_checkboxes)
                     print(predicted_word_labels)
 
                     if picked_checkboxes:
                         click_checkboxes(picked_checkboxes)
-
-                        # connection_alert = browser.get_alert()
-                        # if connection_alert:
-                        #     connection_alert.accept()
-                        #     click_initial_checkbox()
 
                         total_guesses += 1
                     else:
@@ -273,11 +254,8 @@ def guess_captcha(browser):
                         new_run = True
 
                     new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
-                elif all(image_url == new_image_url for new_image_url in new_image_urls):
-                    reload(captcha_iframe)
-                    new_run = True
                 else:
-                    verify(captcha_iframe)
+                    reload(captcha_iframe)
                     new_run = True
 
 
