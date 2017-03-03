@@ -85,6 +85,19 @@ class ImagePreprocessor:
 class LabelProcessor:
 
     @staticmethod
+    def read_categories(path):
+        labels_to_label_names = {}
+        with open(path, 'r') as f:
+            for line in f:
+                label_name, label = line.split(" ")
+                label_name = label_name[3:]  # get rid of the folder name and slashes
+                label_name = label_name.replace("_", " ")
+                label_name = label_name.replace("/", " ")
+                labels_to_label_names[int(label)] = label_name
+
+        return labels_to_label_names
+
+    @staticmethod
     def read_labels(path):
         print("reading labels in {0}".format(path))
         labels = []
@@ -107,27 +120,9 @@ class LabelProcessor:
         chosen_label_names = []
         for image_labels in labels:
             # names = np.load('names.npy')
+            labels_to_label_names = LabelProcessor.read_categories('categories_places365.txt')
 
-            # label_names = [names[label] for label in image_labels]
-
-            label_categories = {
-                'house': 'a house',
-                'beach_house': 'a house',
-                'boathouse': 'a house',
-                'fastfood_restaurant': 'store front',
-                'gas_station': 'store front',
-                'general_store': 'store front',
-                'oast_house': 'a house',
-                'shopfront': 'store front',
-                'storefront': 'store front',
-                'mansion': 'a house'
-            }
-
-            for i, label_name in enumerate(label_names):
-                if label_name in label_categories:
-                    label_names[i] = label_categories[label_name]
-                else:
-                    label_names[i] = label_names[i].replace("_"," ")
+            label_names = [labels_to_label_names[label] for label in image_labels]
 
             chosen_label_names.append(label_names)
 
