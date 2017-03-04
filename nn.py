@@ -1,33 +1,44 @@
 import keras
-import os.path
 import skimage.io
 from sklearn.model_selection import train_test_split
 from preprocessors import ImagePreprocessor, FilepathPreprocessor, LabelProcessor
+import numpy as np
 
 
 class NeuralNetwork:
 
     def __init__(self, weights_file):
+
+        self.num_epochs = 100
+
+        self.train_files, self.train_labels = LabelProcessor.read_labels(['../../datasets/extra_data_labels.txt',
+                                                                          '../../datasets/places365_train_standard.txt',
+                                                                          '../../datasets/places365_val.txt'])
+        self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
+                                                                                                  self.train_labels,
+                                                                                                  test_size=0.1,
+                                                                                                  random_state=2134)
+        self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
+                                                                                                              self.train_labels,
+                                                                                                              test_size=0.2,
+                                                                                                              random_state=124)
+        print("unique train labels: ", len(np.unique(self.train_labels)))
+        self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
+
+
+        # self.validation_files, self.validation_labels = LabelProcessor.read_labels('../../datasets/places365_val.txt')
+        self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
+
+        self.train_size = len(self.train_files)
+        print(self.train_size)
+        self.validation_size = len(self.validation_files)
+        print(self.validation_size)
+
         self.model = self.xception()
-        self.num_epochs = 46
+
         self.model = self.compile_network(self.model)
 
-        if os.path.exists(weights_file):
-            self.model.load_weights(weights_file)
-        else:
-            self.train_files, self.train_labels = LabelProcessor.read_labels('../../datasets/places365_train_standard.txt')
-            self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
-                                                                                                      self.train_labels,
-                                                                                                      test_size=0.2,
-                                                                                                      random_state=2134)
-            self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
-
-            self.validation_files, self.validation_labels = LabelProcessor.read_labels('../../datasets/places365_val.txt')
-            self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
-
-            self.train_size = len(self.train_files)
-            print(self.train_size)
-            self.validation_size = len(self.validation_files)
+        self.train_network()
 
     def predict_image_classes(self):
         images = skimage.io.imread_collection('*_110x110.jpg')
@@ -49,8 +60,9 @@ class NeuralNetwork:
                       metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
         return model
 
-    def xception(self):
+    def xception(self, include_top=True):
         num_classes = self.train_labels.shape[1]
+        print(num_classes)
         img_input = keras.layers.Input(shape=(110, 110, 3))
 
         x = keras.layers.Conv2D(32, 3, 3, subsample=(2, 2), bias=False, name='block1_conv1')(img_input)
@@ -139,8 +151,9 @@ class NeuralNetwork:
         x = keras.layers.BatchNormalization(name='block14_sepconv2_bn')(x)
         x = keras.layers.Activation('relu', name='block14_sepconv2_act')(x)
 
-        x = keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
-        x = keras.layers.Dense(num_classes, activation='softmax', name='predictions')(x)
+        if include_top:
+            x = keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+            x = keras.layers.Dense(num_classes, activation='softmax', name='predictions')(x)
 
         # Create model
         model = keras.models.Model(img_input, x)
@@ -151,7 +164,8 @@ class NeuralNetwork:
         i = 0
         while True:
             print("loading train chunk {0}".format(i / chunk_size))
-            chunk_filepaths = FilepathPreprocessor.process_filepaths(self.train_files[i:i + chunk_size], 'E:/datasets/data_256/')
+            chunk_filepaths = FilepathPreprocessor.process_filepaths(self.train_files[i:i + chunk_size],
+                                                                     ['E:/datasets/data_256/', 'E:/datasets/val_256'])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -167,8 +181,7 @@ class NeuralNetwork:
         while True:
             print("loading validation chunk {0}".format(i))
             chunk_filepaths = FilepathPreprocessor.process_filepaths(self.validation_files[i:i + chunk_size],
-                                                                     'E:/datasets/val_256/',
-                                                                     remove_leading_slash=False)
+                                                                     ['E:/datasets/data256', 'E:/datasets/val_256/'])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -180,17 +193,18 @@ class NeuralNetwork:
                 i = 0
 
     def train_network(self):
-        tensorboard = keras.callbacks.TensorBoard(log_dir='./logs',
+        tensorboard = keras.callbacks.TensorBoard(log_dir='./logs/extra-data',
                                                   histogram_freq=0,
                                                   write_graph=True,
                                                   write_images=False)
-        checkpointer = keras.callbacks.ModelCheckpoint(filepath="generator-model-conv-net-weights.h5",
+        checkpointer = keras.callbacks.ModelCheckpoint(filepath="extra-data-model-conv-net-weights.h5",
                                                        verbose=1,
                                                        save_best_only=True)
-        self.model.fit_generator(self.next_train_batch(chunk_size=23),
-                                 samples_per_epoch=int(self.train_size / (self.num_epochs / 2)),
+        self.model.fit_generator(self.next_train_batch(chunk_size=25),
+                                 samples_per_epoch=int(self.train_size / (self.num_epochs / 4)),
                                  nb_epoch=self.num_epochs,
                                  validation_data=self.next_validation_batch(chunk_size=20),
                                  nb_val_samples=int(self.validation_size / (self.num_epochs / 2)),
                                  callbacks=[checkpointer, tensorboard])
 
+neural_net = NeuralNetwork('E:/Code/recaptcha-cracker/generator-model-conv-net-weights.h5')

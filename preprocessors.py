@@ -1,26 +1,31 @@
 import os.path
 from PIL import Image
-import numpy as np
 from keras.utils import np_utils
+import glob
 
 
 class FilepathPreprocessor:
 
     @staticmethod
-    def process_filepaths(paths, root_path, remove_leading_slash=True):
+    def process_filepaths(paths, root_paths):
         new_paths = []
-        if remove_leading_slash:
-            for path in paths:
-                full_path = os.path.join(root_path, path[1:])
-                if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
-                    new_paths.append(full_path)
-                    # filenames for training images have a leading slash,
-                    # which causes problems on windows with os.path.join
-        else:
-            for path in paths:
-                full_path = os.path.join(root_path, path)
-                if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
-                    new_paths.append(full_path)
+        for path in paths:
+            if path[:1] == '/':
+                path = path[1:]
+
+            if "E:/datasets" in path:
+                full_path = path.replace("\\", "/")
+            elif "_val_" in path:
+                full_path = os.path.join(root_paths[1], path)
+            else:
+                full_path = os.path.join(root_paths[0], path)
+
+            if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
+                new_paths.append(full_path)
+            else:
+                print(full_path)
+                # filenames for training images have a leading slash,
+                # which causes problems on windows with os.path.join
 
         return new_paths
 
@@ -98,15 +103,16 @@ class LabelProcessor:
         return labels_to_label_names
 
     @staticmethod
-    def read_labels(path):
-        print("reading labels in {0}".format(path))
+    def read_labels(paths):
         labels = []
         filenames = []
-        with open(path, 'r') as f:
-            for line in f:
-                filename, label = line.split(" ")
-                labels.append(int(label.rstrip('\r\n')))
-                filenames.append(filename)
+        for path in paths:
+            print("reading labels in {0}".format(path))
+            with open(path, 'r') as f:
+                for line in f:
+                    filename, label = line.split(" ")
+                    labels.append(int(label.rstrip('\r\n')))
+                    filenames.append(filename)
 
         return filenames, labels
 
@@ -127,3 +133,23 @@ class LabelProcessor:
             chosen_label_names.append(label_names)
 
         return chosen_label_names
+
+    @staticmethod
+    def create_label_file_from_files(paths):
+        with open('E:\datasets\extra_data_labels.txt', 'w+') as f:
+            for path in paths:
+                for filepath in glob.glob(path):
+                    print(filepath)
+                    if "_32x32" not in filepath and "_110x110" not in filepath:
+                        if "trafficsigns-train" in filepath and "/00014" not in filepath:
+                            if ".ppm" in filepath:
+                                f.write(filepath + " " + "366" + "\n")
+                        elif "svhn-train" in filepath:
+                            if ".png" in filepath:
+                                f.write(filepath + " " + "365" + "\n")
+                        else:
+                            if ".ppm" in filepath:
+                                f.write(filepath + " " + "367" + "\n")
+
+        # maybe take a labels - foldername dictionary
+        # e.g. svhn-train: 365, traffic-signs-train: 366, traffic-signs-train/00014: 367
