@@ -13,13 +13,12 @@ class FilepathPreprocessor:
             if path[:1] == '/':
                 path = path[1:]
 
-            if "E:/datasets" in path:
-                full_path = path.replace("\\", "/")
-            elif "_val_" in path:
+            if "_val_" in path:
                 full_path = os.path.join(root_paths[1], path)
             else:
                 full_path = os.path.join(root_paths[0], path)
 
+            full_path = full_path.replace("\\", "/")
             if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
                 new_paths.append(full_path)
             else:

@@ -22,9 +22,9 @@ class NeuralNetwork:
                                                                                                               self.train_labels,
                                                                                                               test_size=0.2,
                                                                                                               random_state=124)
+
         print("unique train labels: ", len(np.unique(self.train_labels)))
         self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
-
 
         # self.validation_files, self.validation_labels = LabelProcessor.read_labels('../../datasets/places365_val.txt')
         self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
@@ -165,7 +165,7 @@ class NeuralNetwork:
         while True:
             print("loading train chunk {0}".format(i / chunk_size))
             chunk_filepaths = FilepathPreprocessor.process_filepaths(self.train_files[i:i + chunk_size],
-                                                                     ['E:/datasets/data_256/', 'E:/datasets/val_256'])
+                                                                     ['E:/datasets/data_256/', 'E:/datasets/val_256/'])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -179,9 +179,9 @@ class NeuralNetwork:
     def next_validation_batch(self, chunk_size):
         i = 0
         while True:
-            print("loading validation chunk {0}".format(i))
+            print("loading validation chunk {0}".format(i / chunk_size))
             chunk_filepaths = FilepathPreprocessor.process_filepaths(self.validation_files[i:i + chunk_size],
-                                                                     ['E:/datasets/data256', 'E:/datasets/val_256/'])
+                                                                     ['E:/datasets/data_256/', 'E:/datasets/val_256/'])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -204,7 +204,7 @@ class NeuralNetwork:
                                  samples_per_epoch=int(self.train_size / (self.num_epochs / 4)),
                                  nb_epoch=self.num_epochs,
                                  validation_data=self.next_validation_batch(chunk_size=20),
-                                 nb_val_samples=int(self.validation_size / (self.num_epochs / 2)),
+                                 nb_val_samples=int(self.validation_size / (self.num_epochs / 4)),
                                  callbacks=[checkpointer, tensorboard])
 
 neural_net = NeuralNetwork('E:/Code/recaptcha-cracker/generator-model-conv-net-weights.h5')
