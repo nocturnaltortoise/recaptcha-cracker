@@ -2,6 +2,7 @@ import os.path
 from PIL import Image
 from keras.utils import np_utils
 import glob
+import inflection
 
 
 class FilepathPreprocessor:
@@ -87,6 +88,19 @@ class ImagePreprocessor:
 
 
 class LabelProcessor:
+
+    @staticmethod
+    def depluralise_string(string):
+        singular = inflection.singularize(string)
+        return singular
+
+    @staticmethod
+    def conflate_labels(word_labels):
+        conflated_labels = []
+        for word_label in word_labels:
+            conflated_labels.append(LabelProcessor.depluralise_string(word_label))
+
+        return conflated_labels
 
     @staticmethod
     def read_categories(path):

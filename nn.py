@@ -3,51 +3,67 @@ import skimage.io
 from sklearn.model_selection import train_test_split
 from preprocessors import ImagePreprocessor, FilepathPreprocessor, LabelProcessor
 import numpy as np
+import os.path
 
 
 class NeuralNetwork:
 
     def __init__(self, weights_file):
 
-        self.num_epochs = 100
+        if weights_file:
+            self.model = self.xception()
+            if os.path.exists(weights_file):
+                self.model.load_weights(weights_file)
+                self.model = self.compile_network(self.model)
+        else:
+            self.num_epochs = 100
 
-        self.train_files, self.train_labels = LabelProcessor.read_labels(['../../datasets/extra_data_labels.txt',
-                                                                          '../../datasets/places365_train_standard.txt',
-                                                                          '../../datasets/places365_val.txt'])
-        self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
-                                                                                                  self.train_labels,
-                                                                                                  test_size=0.1,
-                                                                                                  random_state=2134)
-        self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
-                                                                                                              self.train_labels,
-                                                                                                              test_size=0.2,
-                                                                                                              random_state=124)
+            self.train_files, self.train_labels = LabelProcessor.read_labels(['../../datasets/extra_data_labels.txt',
+                                                                              '../../datasets/places365_train_standard.txt',
+                                                                              '../../datasets/places365_val.txt'])
+            self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
+                                                                                                      self.train_labels,
+                                                                                                      test_size=0.1,
+                                                                                                      random_state=2134)
+            self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
+                                                                                                                  self.train_labels,
+                                                                                                                  test_size=0.2,
+                                                                                                                  random_state=124)
 
-        print("unique train labels: ", len(np.unique(self.train_labels)))
-        self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
+            print("unique train labels: ", len(np.unique(self.train_labels)))
+            self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
 
-        # self.validation_files, self.validation_labels = LabelProcessor.read_labels('../../datasets/places365_val.txt')
-        self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
+            # self.validation_files, self.validation_labels = LabelProcessor.read_labels('../../datasets/places365_val.txt')
+            self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
 
-        self.train_size = len(self.train_files)
-        print(self.train_size)
-        self.validation_size = len(self.validation_files)
-        print(self.validation_size)
+            self.train_size = len(self.train_files)
+            print(self.train_size)
+            self.validation_size = len(self.validation_files)
+            print(self.validation_size)
 
-        self.model = self.xception()
+            self.model = self.xception()
 
-        self.model = self.compile_network(self.model)
+            self.model = self.compile_network(self.model)
 
-        self.train_network()
+            self.train_network()
 
     def predict_image_classes(self):
         images = skimage.io.imread_collection('*_110x110.jpg')
         image_array = skimage.io.concatenate_images(images)
-        # image_array = np.transpose(image_array, (0, 3, 1, 2)) # reorder to fit training data
 
         top_n = 5
-        images_predictions = self.model.predict_proba(image_array)
-        all_predictions = [[i for i, pred in sorted([(i, pred) for i, pred in enumerate(image_predictions) if pred > 0], key=lambda x: x[1], reverse=True)[:top_n]] for image_predictions in images_predictions]
+        images_predictions = self.model.predict(image_array)
+        all_predictions = []
+        for image_predictions in images_predictions:
+            individual_predictions = []
+            for i, probability in enumerate(image_predictions):
+                if probability > 0.01:
+                    individual_predictions.append((i,probability))
+            all_predictions.append(individual_predictions)
+
+        all_predictions = [[class_label for (class_label, probability) in individual_predictions] for individual_predictions in all_predictions]
+        # all_predictions = sorted(all_predictions, key=lambda x: x[1], reverse=True)
+        print(all_predictions)
         return all_predictions
 
     @staticmethod
@@ -61,7 +77,8 @@ class NeuralNetwork:
         return model
 
     def xception(self, include_top=True):
-        num_classes = self.train_labels.shape[1]
+        # num_classes = self.train_labels.shape[1]
+        num_classes = 368 # should put train data text files in repo so we can load train_labels on laptop
         print(num_classes)
         img_input = keras.layers.Input(shape=(110, 110, 3))
 
@@ -207,4 +224,4 @@ class NeuralNetwork:
                                  nb_val_samples=int(self.validation_size / (self.num_epochs / 4)),
                                  callbacks=[checkpointer, tensorboard])
 
-neural_net = NeuralNetwork('E:/Code/recaptcha-cracker/generator-model-conv-net-weights.h5')
+# neural_net = NeuralNetwork('E:/Code/recaptcha-cracker/generator-model-conv-net-weights.h5')
