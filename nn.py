@@ -57,22 +57,22 @@ class NeuralNetwork:
     def predict_image_classes(self):
         images = skimage.io.imread_collection('*_110x110.jpg')
         image_array = skimage.io.concatenate_images(images)
+        image_array = ImagePreprocessor.normalise(image_array)
 
         top_n = 5
         images_predictions = self.model.predict(image_array)
-        images_classes = keras.utils.np_utils.probas_to_classes(images_predictions)
-        print(images_classes)
         all_predictions = []
         for image_predictions in images_predictions:
             individual_predictions = []
             for i, probability in enumerate(image_predictions):
-                if probability > 0.01:
+                if probability > 0.1:
                     individual_predictions.append((i,probability))
+
             all_predictions.append(individual_predictions)
 
         all_predictions = [[class_label for (class_label, probability) in sorted(individual_predictions, key=lambda x:x[1], reverse=True)] for individual_predictions in all_predictions]
 
-        print(all_predictions)
+        # print(all_predictions)
         return all_predictions
 
     def compile_network(self):
@@ -239,4 +239,4 @@ class NeuralNetwork:
                                  nb_val_samples=int(self.validation_size / (self.num_epochs / 4)),
                                  callbacks=[checkpointer, tensorboard])
 
-neural_net = NeuralNetwork('extra-data-model-conv-net-weights.h5')
+# neural_net = NeuralNetwork('extra-data-model-conv-net-weights.h5')

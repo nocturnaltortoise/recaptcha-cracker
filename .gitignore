@@ -1,9 +1,18 @@
 # Image data
 *.tar.gz
-svhn-*/
-cifar-*/
-101_ObjectCategories*/
-MNIST*/
+*.jpg
+datasets/
+*.npy
+
+# Model files
+*.h5
+*.yaml
+
+# Tensorboard Logs
+logs/
+
+# Virtualenv
+.venv/
 
 # Pycharm
 .idea/

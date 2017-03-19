@@ -3,13 +3,14 @@ url = "https://pypi.org/"
 verify_ssl = true
 
 [packages]
-splinter = "*"
+clarifai = "*"
 keras = "*"
 scikit-learn = "*"
-clarifai = "*"
+splinter = "*"
 selenium = "*"
 scikit-image = "*"
 matplotlib = "*"
+nltk = "*"
 inflection = "*"
 h5py = "*"
 tensorflow = "*"

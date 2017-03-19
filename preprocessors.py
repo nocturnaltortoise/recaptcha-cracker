@@ -95,10 +95,11 @@ class LabelProcessor:
         return singular
 
     @staticmethod
-    def conflate_labels(word_labels):
+    def conflate_labels(image_label):
+        print("word labels: ", image_label)
         conflated_labels = []
-        for word_label in word_labels:
-            conflated_labels.append(LabelProcessor.depluralise_string(word_label))
+        for word in image_label:
+            conflated_labels.append(LabelProcessor.depluralise_string(word))
 
         return conflated_labels
 
@@ -136,12 +137,16 @@ class LabelProcessor:
 
     @staticmethod
     def convert_labels_to_label_names(labels):
+        print(labels)
         chosen_label_names = []
         for image_labels in labels:
             # names = np.load('names.npy')
             labels_to_label_names = LabelProcessor.read_categories('categories_places365.txt')
 
             label_names = [labels_to_label_names[label] for label in image_labels]
+
+            if not label_names:
+                label_names = [""]
 
             chosen_label_names.append(label_names)
 

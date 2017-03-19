@@ -5,6 +5,9 @@ import os
 import glob
 import nn
 from preprocessors import LabelProcessor, ImagePreprocessor
+import time
+from nltk.corpus import wordnet as wn
+from selenium.common.exceptions import StaleElementReferenceException
 
 
 def find_image_url(captcha_iframe, image_checkboxes=None):
@@ -102,10 +105,11 @@ def download_images(image_url, row_count, col_count, image_urls=None):
 
 
 def find_rows_and_cols(captcha_iframe):
-    table = captcha_iframe.find_by_css('#rc-imageselect-target > table')
-    row_count, col_count = table.first['class'].split('-')[3]
-    row_count, col_count = int(row_count), int(col_count)
-    print("rows from find_rows_and_cols: {0}, cols: {1}".format(row_count, col_count))
+    if captcha_iframe.is_element_present_by_css('#rc-imageselect-target > table', wait_time=3):
+        table = captcha_iframe.find_by_css('#rc-imageselect-target > table')
+        row_count, col_count = table.first['class'].split(" ")[0].split('-')[3]
+        row_count, col_count = int(row_count), int(col_count)
+        print("rows from find_rows_and_cols: {0}, cols: {1}".format(row_count, col_count))
     return row_count, col_count
 
 
@@ -119,15 +123,23 @@ def get_captcha_query(captcha_iframe):
 def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, query):
     matching_labels = []
     for i, image_labels in enumerate(predicted_word_labels):
-        for j, label in enumerate(image_labels):
-            if image_labels[j] == query:
-                matching_labels.append(i) # this works if the test is == because there aren't duplicate labels
+        for label in image_labels:
+            label_synsets = wn.synsets(label)
+            print("wordnet labels: ", label_synsets)
+            query_synsets = wn.synsets(query)
+            print("query synsets: ", query_synsets)
+            if label_synsets and query_synsets:
+                for label_synset in label_synsets:
+                    for query_synset in query_synsets:
+                        if label_synset.path_similarity(query_synset) > 0.5:
+                            matching_labels.append(i) # this works if the test is == because there aren't duplicate labels
+            else:
+                if label == query:
+                    matching_labels.append(i)
         # for i in range(len(image_labels)):
         #     if image_labels[i] == query:
         #         matching_labels.append(i * len(predicted_word_labels) + j)
 
-    print(predicted_word_labels, query)
-    print(matching_labels)
     matching_image_checkboxes = pick_checkboxes_from_positions(matching_labels, image_checkboxes)
     return matching_image_checkboxes
 
@@ -140,6 +152,7 @@ def click_checkboxes(checkboxes):
 
 
 def reload(captcha_iframe):
+    print("Reloading captcha iframe...")
     if captcha_iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
         recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
         recaptcha_reload_button.first.click()
@@ -165,6 +178,7 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
 
             # if new captcha, get checkboxes, download images, pick checkboxes
             if new_run:
+                picked_checkboxes = None # reinitialise picked_checkboxes so previous state doesn't cause problems
                 row_count, col_count = find_rows_and_cols(captcha_iframe)
 
                 if row_count == 0 or col_count == 0:
@@ -210,7 +224,7 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 captcha_text = LabelProcessor.depluralise_string(captcha_text)
                 labels = neural_net.predict_image_classes()
                 predicted_word_labels = LabelProcessor.convert_labels_to_label_names(labels)
-                predicted_word_labels = LabelProcessor.conflate_labels(predicted_word_labels)
+                predicted_word_labels = [LabelProcessor.conflate_labels(image_labels) for image_labels in predicted_word_labels]
                 new_image_checkboxes = get_image_checkboxes(row_count, col_count, captcha_iframe)
                 picked_checkboxes = pick_checkboxes_matching_query(new_image_checkboxes, predicted_word_labels, captcha_text)
 
@@ -222,7 +236,8 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                     verify(captcha_iframe)
                     new_run = True
             else:
-                reload(captcha_iframe)
+                print("Not a new captcha and none of the images have changed, verifying.")
+                verify(captcha_iframe)
                 new_run = True
 
             total_guesses += 1
@@ -261,10 +276,10 @@ def start_guessing():
                 print("Captcha iframe not present.")
                 raise splinter.exceptions.ElementDoesNotExist
                 # better to crash and let supervisor handle it than to reload the browser ourselves
-        # except StaleElementReferenceException:
-        #     print("stale element exception, reloading")
-        #     browser.reload()
-        #     start_guessing() # this works but it keeps making new browser windows
+        except StaleElementReferenceException:
+            print("stale element exception, reloading")
+            browser.reload()
+            start_guessing() # this works but it keeps making new browser windows
         except Exception as e:
             raise e
 
