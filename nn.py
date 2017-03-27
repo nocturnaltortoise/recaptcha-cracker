@@ -8,16 +8,16 @@ import os.path
 
 class NeuralNetwork:
 
-    def __init__(self, weights_file, continue_training=False):
+    def __init__(self, weights_file=None, continue_training=False):
 
-        if weights_file and continue_training:
+        if weights_file is not None and continue_training:
             self.model = self.xception(include_top=False)
             if os.path.exists(weights_file):
                 self.model.load_weights(weights_file, by_name=True)
                 self.compile_network()
                 self.setup_training()
                 self.train_network()
-        elif weights_file:
+        elif weights_file is not None:
             self.model = self.xception(include_top=True)
             if os.path.exists(weights_file):
                 self.model.load_weights(weights_file)
