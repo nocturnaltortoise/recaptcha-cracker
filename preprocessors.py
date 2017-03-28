@@ -8,6 +8,46 @@ import inflection
 class FilepathPreprocessor:
 
     @staticmethod
+    def create_labels(train_path):
+        paths = glob.glob("{0}/*".format(train_path))
+        for i, path in enumerate(paths):
+            for path_tuple in list(os.walk(path)):
+                root = path_tuple[0]
+                dirs = path_tuple[1]
+                files = path_tuple[2]
+
+                if len(files) != 0:
+                    label = root.replace("E:\datasets\captcha-dataset\\","")
+                    label_number = i
+                    files = [filename for filename in files if "_110x110" not in filename]
+                    files = [os.path.join(label, filename) for filename in files]
+                    print(label_number, len(files))
+            # thing = FilepathPreprocessor.walk_tree(path)
+            # print(type(thing))
+            # next_dir = next(os.walk(path))
+            # subpaths = next_dir[1]
+            #
+            # if len(next_dir) == 2:
+            #     for subpath in subpaths:
+            #         path = os.path.join(path, subpath)
+            #         next_dir = next(os.walk(subpath))
+            #         files = next_dir[2]
+            # else:
+            #     files = next_dir[2]
+            #
+            # print(path, len(files))
+
+    @staticmethod
+    def walk_tree(path):
+        root, dirs, files = next(os.walk(path))
+        if dirs:
+            for dirname in dirs:
+                print(os.path.join(root, dirname))
+                FilepathPreprocessor.walk_tree(os.path.join(root, dirname))
+        else:
+            return root, dirs, files
+
+    @staticmethod
     def process_filepaths(paths, root_paths):
         new_paths = []
         for path in paths:
