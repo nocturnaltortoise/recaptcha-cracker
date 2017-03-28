@@ -10,18 +10,23 @@ class FilepathPreprocessor:
     @staticmethod
     def create_labels(train_path):
         paths = glob.glob("{0}/*".format(train_path))
-        for i, path in enumerate(paths):
-            for path_tuple in os.walk(path):
-                root = path_tuple[0]
-                files = path_tuple[2]
+        labels_file_path = '../../datasets/captcha-dataset-labels.txt'
+        with open(labels_file_path, 'w+') as labels_file:
+            for i, path in enumerate(paths):
+                for path_tuple in os.walk(path):
+                    root = path_tuple[0]
+                    files = path_tuple[2]
 
-                if len(files) != 0:
-                    label = os.path.relpath(root, start=train_path)
-                    label_number = i
-                    files = [filename for filename in files if "_110x110" not in filename]
-                    files = [os.path.join(label, filename) for filename in files]
-                    print(label_number, len(files))
-                    
+                    if len(files) != 0:
+                        label = os.path.relpath(root, start=train_path)
+                        label_number = i
+                        files = [filename for filename in files if "_110x110" not in filename and "_32x32" not in filename]
+                        files = [os.path.join(label, filename) for filename in files]
+                        print(label_number, len(files))
+
+                        for file in files:
+                            file_line = file + " " + str(i) + "\r\n"
+                            labels_file.write(file_line)
 
     @staticmethod
     def process_filepaths(paths, root_paths):

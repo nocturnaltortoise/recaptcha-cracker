@@ -298,7 +298,7 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
         guess_captcha(browser, correct_score, total_guesses)
 
     current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
-    with open('logs/current_state.json','a+') as f:
+    with open('logs/current_state.json', 'a+') as f:
         f.write(json.dumps(current_state))
 
 
