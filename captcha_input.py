@@ -141,7 +141,6 @@ def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, quer
             query_synsets = wn.synsets(query, pos=wn.NOUN)
             print("query synsets: ", query_synsets)
             if label_synsets and query_synsets:
-                print(label_synsets, query_synsets)
                 for label_synset in label_synsets:
                     for query_synset in query_synsets:
                         similarity = label_synset.path_similarity(query_synset)
@@ -295,35 +294,33 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
     if browser.is_element_not_present_by_css('body > form > div > div > div > iframe', wait_time=3):
         print("iframe isn't present and neither is correct checkbox, reloading")
         browser.reload()
-        click_initial_checkbox()
+        click_initial_checkbox(browser)
         guess_captcha(browser, correct_score, total_guesses)
 
     current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
     with open('logs/current_state.json','a+') as f:
         f.write(json.dumps(current_state))
 
-def start_guessing():
-    with splinter.Browser() as browser:
-        url = "https://nocturnaltortoise.github.io/captcha"
-        browser.visit(url)
-        neural_net = nn.NeuralNetwork('extra-data-model-conv-net-weights.h5')
-        try:
-            click_initial_checkbox(browser)
 
-            if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
-                print("Captcha iframe is present")
-                guess_captcha(browser, neural_net)
-            else:
-                print("Captcha iframe not present.")
-                raise splinter.exceptions.ElementDoesNotExist
-                # better to crash and let supervisor handle it than to reload the browser ourselves
-        except StaleElementReferenceException:
-            print("stale element exception, reloading")
-            browser.reload()
-            start_guessing() # this works but it keeps making new browser windows
-        except Exception as e:
-            print(e)
-            browser.reload()
-            start_guessing()
+def start_guessing(browser):
+    try:
+        click_initial_checkbox(browser)
 
-start_guessing()
+        if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
+            print("Captcha iframe is present")
+            guess_captcha(browser, neural_net)
+
+    except StaleElementReferenceException:
+        print("stale element exception, reloading")
+        browser.reload()
+        start_guessing(browser) # this works but it keeps making new browser windows
+    except Exception as e:
+        print(e)
+        browser.reload()
+        start_guessing(browser)
+
+with splinter.Browser() as browser:
+    url = "https://nocturnaltortoise.github.io/captcha"
+    browser.visit(url)
+    neural_net = nn.NeuralNetwork('extra-data-model-conv-net-weights.h5')
+    start_guessing(browser)
