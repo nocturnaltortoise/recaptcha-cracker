@@ -8,6 +8,8 @@ from preprocessors import LabelProcessor, ImagePreprocessor
 import time
 from nltk.corpus import wordnet as wn
 from selenium.common.exceptions import StaleElementReferenceException
+import uuid
+import json
 
 
 def find_image_url(captcha_iframe, image_checkboxes=None):
@@ -80,7 +82,7 @@ def delete_old_images():
         os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), image))
 
 
-def download_images(image_url, row_count, col_count, image_urls=None):
+def download_images(image_url, row_count, col_count, captcha_text, random_folder_name, image_urls=None):
     print("Downloading images.")
     if image_urls:
         delete_old_images()
@@ -97,14 +99,24 @@ def download_images(image_url, row_count, col_count, image_urls=None):
         width = img.size[0] / col_count
         height = img.size[1] / row_count
 
+        captcha_folder = "datasets/captchas/{0}".format(captcha_text)
         for row in range(row_count):
             for col in range(col_count):
                 dimensions = (col * width, row * height, col * width + width, row * height + height)
                 individual_captcha_image = img.crop(dimensions)
                 individual_captcha_image.save("captcha-{0}-{1}.jpg".format(row, col), "JPEG")
 
+                if not os.path.exists(captcha_folder):
+                    os.mkdir(captcha_folder)
+
+                if not os.path.exists(captcha_folder + "/" + random_folder_name):
+                    os.mkdir("{0}/{1}".format(captcha_folder, random_folder_name))
+                individual_captcha_image.save("{0}/{1}/{2}-{3}.jpg".format(captcha_folder, random_folder_name, row, col), "JPEG")
+
 
 def find_rows_and_cols(captcha_iframe):
+    row_count = 0
+    col_count = 0
     if captcha_iframe.is_element_present_by_css('#rc-imageselect-target > table', wait_time=3):
         table = captcha_iframe.find_by_css('#rc-imageselect-target > table')
         row_count, col_count = table.first['class'].split(" ")[0].split('-')[3]
@@ -124,14 +136,17 @@ def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, quer
     matching_labels = []
     for i, image_labels in enumerate(predicted_word_labels):
         for label in image_labels:
-            label_synsets = wn.synsets(label)
+            label_synsets = wn.synsets(label, pos=wn.NOUN)
             print("wordnet labels: ", label_synsets)
-            query_synsets = wn.synsets(query)
+            query_synsets = wn.synsets(query, pos=wn.NOUN)
             print("query synsets: ", query_synsets)
             if label_synsets and query_synsets:
+                print(label_synsets, query_synsets)
                 for label_synset in label_synsets:
                     for query_synset in query_synsets:
-                        if label_synset.path_similarity(query_synset) > 0.5:
+                        similarity = label_synset.path_similarity(query_synset)
+                        print("similarity: ", similarity, label_synset, query_synset)
+                        if similarity is not None and similarity > 0.5:
                             matching_labels.append(i) # this works if the test is == because there aren't duplicate labels
             else:
                 if label == query:
@@ -165,10 +180,31 @@ def click_initial_checkbox(browser):
         captcha_checkbox.first.click()
 
 
+def write_guesses_to_file(predictions, folder, captcha_text):
+    with open('guesses.json','a+') as guess_file:
+        existing_predictions = guess_file.read()
+        if existing_predictions:
+            json_predictions = json.loads(existing_predictions)
+            if captcha_text not in json_predictions:
+                json_predictions[captcha_text] = {}
+            json_predictions[captcha_text][folder] = predictions
+            guess_file.write(json.dumps(json_predictions))
+        else:
+            new_predictions = {}
+            new_predictions[captcha_text] = {}
+            new_predictions[captcha_text][folder] = predictions
+            guess_file.write(json.dumps(new_predictions))
+
+
 def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
 
-    # total_guesses not necessarily separate captchas, one captcha with new images added would count as two
+    if os.path.exists('logs/current_state.json'):
+        with open('logs/current_state.json','r') as current_state_file:
+            current_state = json.loads(current_state_file)
+            correct_score = current_state[correct_score]
+            total_guesses = current_state[total_guesses]
 
+    # total_guesses not necessarily separate captchas, one captcha with new images added would count as two
     new_run = True
     while browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
         image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
@@ -178,6 +214,7 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
 
             # if new captcha, get checkboxes, download images, pick checkboxes
             if new_run:
+                random_folder_name = str(uuid.uuid4())
                 picked_checkboxes = None # reinitialise picked_checkboxes so previous state doesn't cause problems
                 row_count, col_count = find_rows_and_cols(captcha_iframe)
 
@@ -187,7 +224,9 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 total_guesses = 0
                 print("New CAPTCHA.")
                 image_url = find_image_url(captcha_iframe)
-                download_images(image_url, row_count, col_count)
+                captcha_text = get_captcha_query(captcha_iframe)
+                captcha_text = LabelProcessor.depluralise_string(captcha_text)
+                download_images(image_url, row_count, col_count, captcha_text, random_folder_name)
                 ImagePreprocessor.resize_images(glob.glob('*.jpg'))
                 ImagePreprocessor.colour_images(glob.glob('*.jpg'))
 
@@ -199,10 +238,12 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 # predicted_word_labels = [prediction['data']['concepts'][0]['name'] for prediction in app.tag_files(glob.glob('*_110x110.jpg'))['outputs']]
                 predicted_word_labels = [LabelProcessor.conflate_labels(image_labels) for image_labels in predicted_word_labels]
                 # print(predicted_word_labels)
-                captcha_text = get_captcha_query(captcha_iframe)
-                captcha_text = LabelProcessor.depluralise_string(captcha_text)
+
+
                 image_checkboxes = get_image_checkboxes(row_count, col_count, captcha_iframe)
                 picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, captcha_text)
+
+                write_guesses_to_file(predicted_word_labels, random_folder_name, captcha_text)
 
                 if picked_checkboxes:
                     click_checkboxes(picked_checkboxes)
@@ -216,12 +257,12 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 print("Some images have changed but CAPTCHA hasn't.")
 
                 image_url = find_image_url(captcha_iframe)
-                download_images(image_url, row_count, col_count, new_image_urls)
+                captcha_text = get_captcha_query(captcha_iframe)
+                captcha_text = LabelProcessor.depluralise_string(captcha_text)
+                download_images(image_url, row_count, col_count, captcha_text, random_folder_name, new_image_urls)
                 ImagePreprocessor.resize_images(glob.glob('*.jpg'))
                 ImagePreprocessor.colour_images(glob.glob('*.jpg'))
 
-                captcha_text = get_captcha_query(captcha_iframe)
-                captcha_text = LabelProcessor.depluralise_string(captcha_text)
                 labels = neural_net.predict_image_classes()
                 predicted_word_labels = LabelProcessor.convert_labels_to_label_names(labels)
                 predicted_word_labels = [LabelProcessor.conflate_labels(image_labels) for image_labels in predicted_word_labels]
@@ -257,9 +298,9 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
         click_initial_checkbox()
         guess_captcha(browser, correct_score, total_guesses)
 
-    current_state = {'total_guesses': total_guesses, 'correct': correct_score}
-    with open('logs/current_state.txt','w+') as f:
-        f.write(current_state)
+    current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
+    with open('logs/current_state.json','a+') as f:
+        f.write(json.dumps(current_state))
 
 def start_guessing():
     with splinter.Browser() as browser:
@@ -281,6 +322,8 @@ def start_guessing():
             browser.reload()
             start_guessing() # this works but it keeps making new browser windows
         except Exception as e:
-            raise e
+            print(e)
+            browser.reload()
+            start_guessing()
 
 start_guessing()
