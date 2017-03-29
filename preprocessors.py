@@ -20,12 +20,16 @@ class FilepathPreprocessor:
                     if len(files) != 0:
                         label = os.path.relpath(root, start=train_path)
                         label_number = i
-                        files = [filename for filename in files if "_110x110" not in filename and "_32x32" not in filename]
-                        files = [os.path.join(label, filename) for filename in files]
-                        print(label_number, len(files))
+                        image_files = []
+                        for filename in files:
+                            path, ext = os.path.splitext(filename)
+                            if ext == '.png' or ext == '.jpg' or ext == '.ppm':
+                                if "_93x93" not in path:
+                                    image_files.append(os.path.join(label, filename))
+                        print(label_number, len(image_files))
 
-                        for file in files:
-                            file_line = file + " " + str(i) + "\r\n"
+                        for file in image_files:
+                            file_line = file + " " + str(i) + "\n"
                             labels_file.write(file_line)
 
     @staticmethod
@@ -54,9 +58,9 @@ class FilepathPreprocessor:
     def change_filepaths_after_resize(paths):
         resize_paths = []
         for path in paths:
-            if "_110x110" not in path:
+            if "_93x93" not in path:
                 name, ext = os.path.splitext(path)
-                path = name + "_110x110" + ext
+                path = name + "_93x93" + ext
             resize_paths.append(path)
 
         return resize_paths
@@ -70,13 +74,13 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                if not os.path.exists(filename + "_110x110" + ext) or os.path.getsize(filename + "_110x110" + ext) == 0:
+                if not os.path.exists(filename + "_93x93" + ext) or os.path.getsize(filename + "_93x93" + ext) == 0:
                     # if the file hasn't been resized or the resized version is corrupt (i.e. zero size)
-                    if "_110x110" not in filename:
+                    if "_93x93" not in filename:
                         try:
                             image = Image.open(path)
-                            image = image.resize((110, 110))
-                            image.save(filename + "_110x110" + ext)
+                            image = image.resize((93, 93))
+                            image.save(filename + "_93x93" + ext)
                         except OSError:
                             print("OSError caused by file at {0}".format(path))
                             continue
@@ -88,7 +92,7 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                if "_110x110" in filename:
+                if "_93x93" in filename:
                     try:
                         image = Image.open(path)
                         if image.mode != "RGB":
