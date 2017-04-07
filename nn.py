@@ -10,7 +10,7 @@ class NeuralNetwork:
 
     def __init__(self, weights_file=None, continue_training=False, start_epoch=None):
         self.num_epochs = 100
-        self.train_files, self.train_labels = LabelProcessor.read_labels(['../../datasets/captcha-dataset-labels.txt'])
+        self.train_files, self.train_labels = LabelProcessor.read_labels(['captcha-dataset-labels.txt'])
         self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
                                                                                                   self.train_labels,
                                                                                                   test_size=0.1,
@@ -45,7 +45,7 @@ class NeuralNetwork:
 
 
     def predict_image_classes(self):
-        images = skimage.io.imread_collection('*_110x110.jpg')
+        images = skimage.io.imread_collection('*_93x93.jpg')
         image_array = skimage.io.concatenate_images(images)
         image_array = ImagePreprocessor.normalise(image_array)
 
@@ -55,7 +55,7 @@ class NeuralNetwork:
         for image_predictions in images_predictions:
             individual_predictions = []
             for i, probability in enumerate(image_predictions):
-                if probability > 0.1:
+                if probability > 0.05:
                     individual_predictions.append((i,probability))
 
             all_predictions.append(individual_predictions)
@@ -230,4 +230,4 @@ class NeuralNetwork:
                                  initial_epoch=start_epoch)
         # should make a callback that writes an epoch number to a file for resuming
 
-neural_net = NeuralNetwork('xception-less-data-weights.h5', continue_training=True, start_epoch=10)
+# neural_net = NeuralNetwork('xception-less-data-weights.h5', continue_training=True, start_epoch=10)

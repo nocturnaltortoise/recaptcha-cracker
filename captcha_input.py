@@ -6,6 +6,7 @@ and preprocessing functions from preprocessors.
 import glob
 import json
 import os
+import time
 import uuid
 
 from nltk.corpus import wordnet as wn
@@ -138,26 +139,14 @@ def get_captcha_query(captcha_iframe):
 
 def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, query):
     matching_labels = []
-    # this similarity code isn't very good
     for i, image_labels in enumerate(predicted_word_labels):
         for label in image_labels:
-            label_synsets = wn.synsets(label, pos=wn.NOUN)
-            print("wordnet labels: ", label_synsets)
-            query_synsets = wn.synsets(query, pos=wn.NOUN)
-            print("query synsets: ", query_synsets)
-            if label_synsets and query_synsets:
-                for label_synset in label_synsets:
-                    for query_synset in query_synsets:
-                        similarity = label_synset.path_similarity(query_synset)
-                        print("similarity: ", similarity, label_synset, query_synset)
-                        if similarity is not None and similarity > 0.5:
-                            matching_labels.append(i) # this works if the test is == because there aren't duplicate labels
-            else:
-                if label == query:
-                    matching_labels.append(i)
-        # for i in range(len(image_labels)):
-        #     if image_labels[i] == query:
-        #         matching_labels.append(i * len(predicted_word_labels) + j)
+            if " " in label:
+                for word in label.split(" "):
+                    if word == query:
+                        matching_labels.append(i)
+            elif label == query:
+                matching_labels.append(i)
 
     matching_image_checkboxes = pick_checkboxes_from_positions(matching_labels, image_checkboxes)
     return matching_image_checkboxes
@@ -218,8 +207,8 @@ def guess_captcha(browser, neural_net):
     if os.path.exists('logs/current_state.json'):
         with open('logs/current_state.json','r') as current_state_file:
             current_state = json.loads(current_state_file.read())
-            correct_score = current_state["correct_score"]
-            total_guesses = current_state["total_guesses"]
+            correct_score = int(current_state["correct_score"])
+            total_guesses = int(current_state["total_guesses"])
     else:
         with open('logs/current_state.json', 'w') as current_state_file:
             new_state = {"correct_score": 0, "total_guesses": 0}
@@ -234,11 +223,13 @@ def guess_captcha(browser, neural_net):
             # need to keep getting images and image urls until this batch
             # of image urls is the same as the last run
             # i.e. keep selecting images until the captcha stops replacing images
+            time.sleep(0.5)
+            print("after clicking: ", browser.find_by_css('body > div').first.visible)
 
             with open('logs/current_state.json', 'r') as current_state_file:
                 current_state = json.loads(current_state_file.read())
-                correct_score = current_state["correct_score"]
-                total_guesses = current_state["total_guesses"]
+                correct_score = int(current_state["correct_score"])
+                total_guesses = int(current_state["total_guesses"])
 
             # if new captcha, get checkboxes, download images, pick checkboxes
             if new_run:
@@ -310,9 +301,8 @@ def guess_captcha(browser, neural_net):
         checkmarkbox = iframe.find_by_id('recaptcha-anchor')
         if checkmarkbox.has_class('recaptcha-checkbox-checked'):
             browser.reload()
-            correct_score += 1
             print("Captchas Correct: {0}".format(correct_score))
-            current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
+            current_state = {'total_guesses': total_guesses, 'correct_score': correct_score+1}
             with open('logs/current_state.json', 'w+') as f:
                 f.write(json.dumps(current_state))
 
@@ -323,14 +313,22 @@ def guess_captcha(browser, neural_net):
         browser.reload()
         click_initial_checkbox(browser)
         guess_captcha(browser, neural_net)
-
-    current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
-    with open('logs/current_state.json', 'a+') as f:
-        f.write(json.dumps(current_state))
+    elif not browser.find_by_css('body > form > div > div > div > iframe').first.visible:
+        print("iframe isn't visible and neither is correct checkbox, reloading")
+        browser.reload()
+        click_initial_checkbox(browser)
+        guess_captcha(browser, neural_net)
+    else:
+        # print(browser.find_by_css('body > form > div > div > div > iframe').first)
+        print("This shouldn't happen")
+    # current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
+    # with open('logs/current_state.json', 'a+') as f:
+    #     f.write(json.dumps(current_state))
 
 
 def start_guessing(browser):
     try:
+        print("before clicking: ", browser.find_by_css('body > div').first.visible)
         click_initial_checkbox(browser)
 
         if browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
@@ -340,14 +338,13 @@ def start_guessing(browser):
     except StaleElementReferenceException:
         print("stale element exception, reloading")
         browser.reload()
-        start_guessing(browser) # this works but it keeps making new browser windows
+        start_guessing(browser)
     except Exception as e:
-        print(e)
         browser.reload()
         start_guessing(browser)
 
 with splinter.Browser() as browser:
     url = "https://nocturnaltortoise.github.io/captcha"
     browser.visit(url)
-    neural_net = nn.NeuralNetwork('extra-data-model-conv-net-weights.h5')
+    neural_net = nn.NeuralNetwork('weights/xception-less-data-weights.h5')
     start_guessing(browser)

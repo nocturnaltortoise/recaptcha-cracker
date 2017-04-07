@@ -7,6 +7,8 @@ import glob
 from PIL import Image
 from keras.utils import np_utils
 import inflection
+import numpy as np
+import re
 
 
 class FilepathPreprocessor:
@@ -144,12 +146,35 @@ class LabelProcessor:
         with open(path, 'r') as categories_file:
             for line in categories_file:
                 label_name, label = line.split(" ")
-                label_name = label_name[3:]  # get rid of the folder name and slashes
                 label_name = label_name.replace("_", " ")
                 label_name = label_name.replace("/", " ")
                 labels_to_label_names[int(label)] = label_name
 
         return labels_to_label_names
+
+    @staticmethod
+    def parse_label_from_filename(filename):
+        filename_parts = re.findall(r"[a-zA-Z_]+", filename)
+        label_parts = []
+        for part in filename_parts:
+            filetypes = ["jpg", "png", "ppm"]
+            if all(file_ext not in part for file_ext in filetypes):
+                label_parts.append(part)
+
+        return "/".join(label_parts)
+
+    @staticmethod
+    def create_categories_file(labels_file_path):
+        filenames, labels = LabelProcessor.read_labels([labels_file_path])
+        category_labels = zip(filenames, labels)
+        seen_labels = set()
+        for category_label in category_labels:
+            filename, label = category_label
+            if label not in seen_labels:
+                filename = LabelProcessor.parse_label_from_filename(filename)
+                with open("captcha-dataset-categories.txt", "a") as categories_file:
+                    categories_file.write(filename + " " + str(label) + "\n")
+                seen_labels.add(label)
 
     @staticmethod
     def read_labels(paths):
@@ -176,7 +201,7 @@ class LabelProcessor:
         chosen_label_names = []
         for image_labels in labels:
             # names = np.load('names.npy')
-            labels_to_label_names = LabelProcessor.read_categories('categories_places365.txt')
+            labels_to_label_names = LabelProcessor.read_categories('captcha-dataset-categories.txt')
 
             label_names = [labels_to_label_names[label] for label in image_labels]
 
