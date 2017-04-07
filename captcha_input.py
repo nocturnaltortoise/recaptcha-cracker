@@ -325,6 +325,12 @@ def guess_captcha(browser, neural_net):
         guess_captcha(browser, neural_net)
 
 
+<<<<<<< HEAD
+=======
+    current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
+    with open('logs/current_state.json', 'a+') as f:
+        f.write(json.dumps(current_state))
+>>>>>>> f1e705b9d3aad4e67b242d7e645e5264a98b3ebe
 
 
 def start_guessing(browser):

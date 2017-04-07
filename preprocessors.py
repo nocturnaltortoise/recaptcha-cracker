@@ -1,7 +1,11 @@
+'''
+Functions for handling labels, filepaths and images.
+'''
+
 import os.path
+import glob
 from PIL import Image
 from keras.utils import np_utils
-import glob
 import inflection
 
 
@@ -9,18 +13,29 @@ class FilepathPreprocessor:
 
     @staticmethod
     def create_labels(train_path):
+        # this probably does too much
         paths = glob.glob("{0}/*".format(train_path))
-        for i, path in enumerate(paths):
-            for path_tuple in os.walk(path):
-                root = path_tuple[0]
-                files = path_tuple[2]
+        labels_file_path = '../../datasets/captcha-dataset-labels.txt'
+        with open(labels_file_path, 'w+') as labels_file:
+            for i, path in enumerate(paths):
+                for path_tuple in os.walk(path):
+                    root = path_tuple[0]
+                    files = path_tuple[2]
 
-                if len(files) != 0:
-                    label = os.path.relpath(root, start=train_path)
-                    label_number = i
-                    files = [filename for filename in files if "_110x110" not in filename]
-                    files = [os.path.join(label, filename) for filename in files]
-                    print(label_number, len(files))
+                    if len(files) != 0:
+                        label = os.path.relpath(root, start=train_path)
+                        label_number = i
+                        image_files = []
+                        for filename in files:
+                            path, ext = os.path.splitext(filename)
+                            if ext == '.png' or ext == '.jpg' or ext == '.ppm':
+                                if "_93x93" not in path:
+                                    image_files.append(os.path.join(label, filename))
+                        print(label_number, len(image_files))
+
+                        for file in image_files:
+                            file_line = file + " " + str(i) + "\n"
+                            labels_file.write(file_line)
 
     @staticmethod
     def process_filepaths(paths, root_paths):
@@ -48,9 +63,9 @@ class FilepathPreprocessor:
     def change_filepaths_after_resize(paths):
         resize_paths = []
         for path in paths:
-            if "_110x110" not in path:
+            if "_93x93" not in path:
                 name, ext = os.path.splitext(path)
-                path = name + "_110x110" + ext
+                path = name + "_93x93" + ext
             resize_paths.append(path)
 
         return resize_paths
@@ -64,15 +79,15 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                new_filename = filename + "_110x110" + ext
+                new_filename = filename + "_93x93" + ext
                 if not os.path.exists(new_filename) or os.path.getsize(new_filename) == 0:
                     # if the file hasn't been resized
                     # or the resized version is corrupt (i.e. zero size)
-                    if "_110x110" not in filename:
+                    if "_93x93" not in filename:
                         try:
                             image = Image.open(path)
-                            image = image.resize((110, 110))
-                            image.save(filename + "_110x110" + ext)
+                            image = image.resize((93, 93))
+                            image.save(filename + "_93x93" + ext)
                         except OSError:
                             print("OSError caused by file at {0}".format(path))
                             continue
@@ -85,7 +100,7 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                if "_110x110" in filename:
+                if "_93x93" in filename:
                     try:
                         image = Image.open(path)
                         if image.mode != "RGB":
