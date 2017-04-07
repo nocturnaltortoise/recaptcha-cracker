@@ -21,7 +21,6 @@ class FilepathPreprocessor:
                     files = [filename for filename in files if "_110x110" not in filename]
                     files = [os.path.join(label, filename) for filename in files]
                     print(label_number, len(files))
-                    
 
     @staticmethod
     def process_filepaths(paths, root_paths):
@@ -65,8 +64,10 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                if not os.path.exists(filename + "_110x110" + ext) or os.path.getsize(filename + "_110x110" + ext) == 0:
-                    # if the file hasn't been resized or the resized version is corrupt (i.e. zero size)
+                new_filename = filename + "_110x110" + ext
+                if not os.path.exists(new_filename) or os.path.getsize(new_filename) == 0:
+                    # if the file hasn't been resized
+                    # or the resized version is corrupt (i.e. zero size)
                     if "_110x110" not in filename:
                         try:
                             image = Image.open(path)
@@ -75,7 +76,8 @@ class ImagePreprocessor:
                         except OSError:
                             print("OSError caused by file at {0}".format(path))
                             continue
-                            # if OSError: cannot identify image file occurs despite above checks, skip the image
+                            # if OSError:
+                            # cannot identify image file occurs despite above checks, skip the image
 
     @staticmethod
     def colour_images(paths):
@@ -92,7 +94,9 @@ class ImagePreprocessor:
                             image.save(filename + ext)
                     except OSError:
                         print("OSError caused by file at {0}".format(path))
-                        continue  # if OSError: cannot identify image file occurs despite above checks, skip the image
+                        continue
+                        # if OSError:
+                        # cannot identify image file occurs despite above checks, skip the image
 
     @staticmethod
     def normalise(image_data):
@@ -122,8 +126,8 @@ class LabelProcessor:
     @staticmethod
     def read_categories(path):
         labels_to_label_names = {}
-        with open(path, 'r') as f:
-            for line in f:
+        with open(path, 'r') as categories_file:
+            for line in categories_file:
                 label_name, label = line.split(" ")
                 label_name = label_name[3:]  # get rid of the folder name and slashes
                 label_name = label_name.replace("_", " ")
@@ -138,8 +142,8 @@ class LabelProcessor:
         filenames = []
         for path in paths:
             print("reading labels in {0}".format(path))
-            with open(path, 'r') as f:
-                for line in f:
+            with open(path, 'r') as label_file:
+                for line in label_file:
                     filename, label = line.split(" ")
                     labels.append(int(label.rstrip('\r\n')))
                     filenames.append(filename)
@@ -170,20 +174,20 @@ class LabelProcessor:
 
     @staticmethod
     def create_label_file_from_files(paths):
-        with open('E:\datasets\extra_data_labels.txt', 'w+') as f:
+        with open('E:\datasets\extra_data_labels.txt', 'w+') as extra_labels_file:
             for path in paths:
                 for filepath in glob.glob(path):
                     print(filepath)
                     if "_32x32" not in filepath and "_110x110" not in filepath:
                         if "trafficsigns-train" in filepath and "/00014" not in filepath:
                             if ".ppm" in filepath:
-                                f.write(filepath + " " + "366" + "\n")
+                                extra_labels_file.write(filepath + " " + "366" + "\n")
                         elif "svhn-train" in filepath:
                             if ".png" in filepath:
-                                f.write(filepath + " " + "365" + "\n")
+                                extra_labels_file.write(filepath + " " + "365" + "\n")
                         else:
                             if ".ppm" in filepath:
-                                f.write(filepath + " " + "367" + "\n")
+                                extra_labels_file.write(filepath + " " + "367" + "\n")
 
         # maybe take a labels - foldername dictionary
         # e.g. svhn-train: 365, traffic-signs-train: 366, traffic-signs-train/00014: 367

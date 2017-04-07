@@ -1,26 +1,32 @@
-import splinter
-import requests
-from PIL import Image
-import os
+'''
+Controls input to the reCAPTCHA, using results from the NeuralNetwork class
+and preprocessing functions from preprocessors.
+'''
+
 import glob
-import nn
-from preprocessors import LabelProcessor, ImagePreprocessor
-import time
-from nltk.corpus import wordnet as wn
-from selenium.common.exceptions import StaleElementReferenceException
-import uuid
 import json
+import os
+import uuid
+
+from nltk.corpus import wordnet as wn
+from PIL import Image
+import requests
+from selenium.common.exceptions import StaleElementReferenceException
+import splinter
+
+from preprocessors import LabelProcessor, ImagePreprocessor
+import nn
 
 
-def find_image_url(captcha_iframe, image_checkboxes=None):
+def find_image_url(captcha_iframe, total_guesses, correct_score, image_checkboxes=None):
     print("Getting URLs.")
 
     if image_checkboxes:
         image_urls = []
         for checkbox in image_checkboxes:
-            x, y = checkbox['position']
+            row, col = checkbox['position']
             changed_image_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div/div[1]/img'\
-                .format(x, y)
+                .format(row, col)
             if captcha_iframe.is_element_present_by_xpath(changed_image_xpath, wait_time=3):
                 image_url = captcha_iframe.find_by_xpath(changed_image_xpath)['src']
                 image_urls.append(image_url)
@@ -33,7 +39,7 @@ def find_image_url(captcha_iframe, image_checkboxes=None):
             image_url = captcha_iframe.find_by_xpath(image_xpath)['src']
         else:
             print("can't find image")
-            reload(captcha_iframe)
+            reload(captcha_iframe, total_guesses, correct_score)
         return image_url
 
 
@@ -50,30 +56,27 @@ def get_image_checkboxes(rows, cols, captcha_iframe):
     image_checkboxes = []
     for i in range(1, rows+1):
         for j in range(1, cols+1):
-            checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'.format(i, j)
+            checkbox_xpath = '//*[@id="rc-imageselect-target"]/table/tbody/tr[{0}]/td[{1}]/div'\
+                                .format(i, j)
 
             if captcha_iframe.is_element_present_by_xpath(checkbox_xpath, wait_time=3):
-                image_checkboxes.append({'checkbox': captcha_iframe.find_by_xpath(checkbox_xpath), 'position': (i, j)})
+                image_checkboxes.append({
+                    'checkbox': captcha_iframe.find_by_xpath(checkbox_xpath),
+                    'position': (i, j)
+                })
             else:
                 print("Can't find a checkbox at {0}, {1}".format(i, j))
     return image_checkboxes
 
 
-def verify(captcha_iframe):
+def verify(captcha_iframe, total_guesses, correct_score):
     print("Clicking verify.")
     if captcha_iframe.is_element_present_by_id('recaptcha-verify-button', wait_time=3):
         verify_button = captcha_iframe.find_by_id('recaptcha-verify-button')
         verify_button.first.click()
-
-    # not_select_all_images_error = captcha_iframe.is_text_not_present('Please select all matching images.')
-    # not_retry_error = captcha_iframe.is_text_not_present('Please try again.')
-    # not_select_more_images_error = captcha_iframe.is_text_not_present('Please also check the new images.')
-    # if not_select_all_images_error and not_retry_error and not_select_more_images_error:
-    #     correct_score += 1
-    # total_guesses += 1
-    # print("Total possibly correct: {correct}".format(correct=correct_score))
-    # print("Total guesses: {guesses}".format(guesses=total_guesses))
-    # print("Percentage: {percent}".format(percent=float(correct_score)/total_guesses))
+        current_state = {'total_guesses': total_guesses+1, 'correct_score': correct_score}
+        with open('logs/current_state.json', 'w+') as current_state_file:
+            current_state_file.write(json.dumps(current_state))
 
 
 def delete_old_images():
@@ -83,6 +86,7 @@ def delete_old_images():
 
 
 def download_images(image_url, row_count, col_count, captcha_text, random_folder_name, image_urls=None):
+    # this function does too much - too many args and too many local vars
     print("Downloading images.")
     if image_urls:
         delete_old_images()
@@ -134,6 +138,7 @@ def get_captcha_query(captcha_iframe):
 
 def pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, query):
     matching_labels = []
+    # this similarity code isn't very good
     for i, image_labels in enumerate(predicted_word_labels):
         for label in image_labels:
             label_synsets = wn.synsets(label, pos=wn.NOUN)
@@ -165,22 +170,35 @@ def click_checkboxes(checkboxes):
                 checkbox['checkbox'].click()
 
 
-def reload(captcha_iframe):
+def reload(captcha_iframe, total_guesses, correct_score):
     print("Reloading captcha iframe...")
     if captcha_iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
         recaptcha_reload_button = captcha_iframe.find_by_id('recaptcha-reload-button')
         recaptcha_reload_button.first.click()
+        current_state = {'total_guesses': total_guesses+1, 'correct_score': correct_score}
+        with open('logs/current_state.json','w+') as f:
+            f.write(json.dumps(current_state))
 
 
 def click_initial_checkbox(browser):
-    with browser.get_iframe('undefined') as iframe:
-        print("Clicking initial checkbox.")
-        captcha_checkbox = iframe.find_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]')
-        captcha_checkbox.first.click()
+    if browser.is_element_present_by_name('undefined', wait_time=3):
+        with browser.get_iframe('undefined') as iframe:
+            print("Clicking initial checkbox.")
+            if iframe.is_element_present_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]', wait_time=3):
+                captcha_checkbox = iframe.find_by_xpath('//div[@class="recaptcha-checkbox-checkmark"]')
+                captcha_checkbox.first.click()
+            else:
+                print("Can't find initial checkbox.")
+                browser.reload()
+                start_guessing(browser)
+    else:
+        print("Can't find initial iframe.")
+        browser.reload()
+        start_guessing(browser)
 
 
 def write_guesses_to_file(predictions, folder, captcha_text):
-    with open('guesses.json','a+') as guess_file:
+    with open('guesses.json','w+') as guess_file:
         existing_predictions = guess_file.read()
         if existing_predictions:
             json_predictions = json.loads(existing_predictions)
@@ -195,34 +213,45 @@ def write_guesses_to_file(predictions, folder, captcha_text):
             guess_file.write(json.dumps(new_predictions))
 
 
-def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
+def guess_captcha(browser, neural_net):
 
     if os.path.exists('logs/current_state.json'):
         with open('logs/current_state.json','r') as current_state_file:
-            current_state = json.loads(current_state_file)
-            correct_score = current_state[correct_score]
-            total_guesses = current_state[total_guesses]
+            current_state = json.loads(current_state_file.read())
+            correct_score = current_state["correct_score"]
+            total_guesses = current_state["total_guesses"]
+    else:
+        with open('logs/current_state.json', 'w') as current_state_file:
+            new_state = {"correct_score": 0, "total_guesses": 0}
+            current_state_file.write(json.dumps(new_state))
+            correct_score = 0
+            total_guesses = 0
 
-    # total_guesses not necessarily separate captchas, one captcha with new images added would count as two
     new_run = True
     while browser.is_element_present_by_css('body > div > div:nth-child(4) > iframe', wait_time=3):
         image_iframe = browser.find_by_css('body > div > div:nth-child(4) > iframe')
         with browser.get_iframe(image_iframe.first['name']) as captcha_iframe:
-            # need to keep getting images and image urls until this batch of image urls is the same as the last run
+            # need to keep getting images and image urls until this batch
+            # of image urls is the same as the last run
             # i.e. keep selecting images until the captcha stops replacing images
+
+            with open('logs/current_state.json', 'r') as current_state_file:
+                current_state = json.loads(current_state_file.read())
+                correct_score = current_state["correct_score"]
+                total_guesses = current_state["total_guesses"]
 
             # if new captcha, get checkboxes, download images, pick checkboxes
             if new_run:
                 random_folder_name = str(uuid.uuid4())
-                picked_checkboxes = None # reinitialise picked_checkboxes so previous state doesn't cause problems
+                picked_checkboxes = None
+                # reinitialise picked_checkboxes so previous state doesn't cause problems
                 row_count, col_count = find_rows_and_cols(captcha_iframe)
 
                 if row_count == 0 or col_count == 0:
                     break
 
-                total_guesses = 0
                 print("New CAPTCHA.")
-                image_url = find_image_url(captcha_iframe)
+                image_url = find_image_url(captcha_iframe, total_guesses, correct_score)
                 captcha_text = get_captcha_query(captcha_iframe)
                 captcha_text = LabelProcessor.depluralise_string(captcha_text)
                 download_images(image_url, row_count, col_count, captcha_text, random_folder_name)
@@ -230,14 +259,10 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 ImagePreprocessor.colour_images(glob.glob('*.jpg'))
 
                 labels = neural_net.predict_image_classes()
-                # print(labels)
-                # labels = [i for (i,probability) in labels]
+
                 predicted_word_labels = LabelProcessor.convert_labels_to_label_names(labels)
 
-                # predicted_word_labels = [prediction['data']['concepts'][0]['name'] for prediction in app.tag_files(glob.glob('*_110x110.jpg'))['outputs']]
                 predicted_word_labels = [LabelProcessor.conflate_labels(image_labels) for image_labels in predicted_word_labels]
-                # print(predicted_word_labels)
-
 
                 image_checkboxes = get_image_checkboxes(row_count, col_count, captcha_iframe)
                 picked_checkboxes = pick_checkboxes_matching_query(image_checkboxes, predicted_word_labels, captcha_text)
@@ -247,15 +272,15 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
                 if picked_checkboxes:
                     click_checkboxes(picked_checkboxes)
                     new_run = False
-                    new_image_urls = find_image_url(captcha_iframe, image_checkboxes)
+                    new_image_urls = find_image_url(captcha_iframe, total_guesses, correct_score, image_checkboxes)
                 else:
-                    reload(captcha_iframe)
+                    reload(captcha_iframe, total_guesses, correct_score)
                     new_run = True
 
             elif any(image_url != new_image_url for new_image_url in new_image_urls):
                 print("Some images have changed but CAPTCHA hasn't.")
 
-                image_url = find_image_url(captcha_iframe)
+                image_url = find_image_url(captcha_iframe, total_guesses, correct_score)
                 captcha_text = get_captcha_query(captcha_iframe)
                 captcha_text = LabelProcessor.depluralise_string(captcha_text)
                 download_images(image_url, row_count, col_count, captcha_text, random_folder_name, new_image_urls)
@@ -270,17 +295,15 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
 
                 if picked_checkboxes:
                     click_checkboxes(picked_checkboxes)
-                    new_image_urls = find_image_url(captcha_iframe, new_image_checkboxes)
+                    new_image_urls = find_image_url(captcha_iframe, total_guesses, correct_score, new_image_checkboxes)
                     new_run = False
                 else:
-                    verify(captcha_iframe)
+                    verify(captcha_iframe, total_guesses, correct_score)
                     new_run = True
             else:
                 print("Not a new captcha and none of the images have changed, verifying.")
-                verify(captcha_iframe)
+                verify(captcha_iframe, total_guesses, correct_score)
                 new_run = True
-
-            total_guesses += 1
 
     outer_iframe = browser.find_by_css('body > form > div > div > div > iframe')
     with browser.get_iframe(outer_iframe.first['name']) as iframe:
@@ -289,17 +312,19 @@ def guess_captcha(browser, neural_net, correct_score=0, total_guesses=0):
             browser.reload()
             correct_score += 1
             print("Captchas Correct: {0}".format(correct_score))
-            guess_captcha(browser, correct_score, total_guesses)
+            current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
+            with open('logs/current_state.json', 'w+') as f:
+                f.write(json.dumps(current_state))
+
+            guess_captcha(browser, neural_net)
 
     if browser.is_element_not_present_by_css('body > form > div > div > div > iframe', wait_time=3):
         print("iframe isn't present and neither is correct checkbox, reloading")
         browser.reload()
         click_initial_checkbox(browser)
-        guess_captcha(browser, correct_score, total_guesses)
+        guess_captcha(browser, neural_net)
 
-    current_state = {'total_guesses': total_guesses, 'correct_score': correct_score}
-    with open('logs/current_state.json','a+') as f:
-        f.write(json.dumps(current_state))
+
 
 
 def start_guessing(browser):

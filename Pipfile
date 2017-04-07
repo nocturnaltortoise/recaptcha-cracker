@@ -3,7 +3,7 @@ url = "https://pypi.org/"
 verify_ssl = true
 
 [packages]
-clarifai = "*"
+h5py = "*"
 keras = "*"
 scikit-learn = "*"
 splinter = "*"
@@ -12,7 +12,7 @@ scikit-image = "*"
 matplotlib = "*"
 nltk = "*"
 inflection = "*"
-h5py = "*"
+pylint = "*"
 tensorflow = "*"
 requests = "*"
 numpy = "*"
