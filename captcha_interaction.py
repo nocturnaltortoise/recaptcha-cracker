@@ -13,15 +13,15 @@ class CaptchaElement:
         self.captcha = None
         self.browser = browser
         self.captcha_iframe_element = browser.find_by_css('body > div > div:nth-child(4) > iframe')
-        self.captcha_iframe = browser.get_iframe(self.captcha_iframe_element.first['name'])
+        self.captcha_iframe_name = self.captcha_iframe_element.first['name']
         self.captcha_table = '#rc-imageselect-target > table > tbody'
         self.captcha_image_selector = 'div > div.rc-image-tile-wrapper > img'
         self.state_file_path = 'logs/current_state.json'
 
-    def reload(self):
+    def reload(self, iframe):
         print("Reloading captcha iframe...")
-        if self.captcha_iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
-            recaptcha_reload_button = self.captcha_iframe.find_by_id('recaptcha-reload-button')
+        if iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
+            recaptcha_reload_button = iframe.find_by_id('recaptcha-reload-button')
             recaptcha_reload_button.first.click()
 
             update_state_file(self.state_file_path, correct=False)
@@ -30,7 +30,7 @@ class CaptchaElement:
     def join_selectors(selectors):
         return " > ".join(selectors)
 
-    def find_new_image_urls(self, changed_images):
+    def find_new_image_urls(self, iframe, changed_images):
         try:
             image_urls = []
             for image in changed_images:
@@ -40,9 +40,9 @@ class CaptchaElement:
                     [self.captcha_table,
                      row_col_selector,
                      self.captcha_image_selector])
-                if self.captcha_iframe.is_element_present_by_css(changed_image_selector,
-                                                                 wait_time=3):
-                    image_url = self.captcha_iframe.find_by_css(changed_image_selector)['src']
+                if iframe.is_element_present_by_css(changed_image_selector,
+                                                    wait_time=3):
+                    image_url = iframe.find_by_css(changed_image_selector)['src']
                     image_urls.append(image_url)
                 else:
                     raise CaptchaImageNotFoundException(
@@ -50,9 +50,9 @@ class CaptchaElement:
             self.captcha.changed_urls = image_urls
         except CaptchaImageNotFoundException as image_not_found:
             print(image_not_found.message, file=sys.stderr)
-            self.reload()
+            self.reload(iframe)
 
-    def find_image_url(self):
+    def find_image_url(self, iframe):
         print("Getting URLs.")
         try:
             # get the first image in the grid, which has the url of the main image
@@ -62,16 +62,16 @@ class CaptchaElement:
             image_selector = CaptchaElement.join_selectors([self.captcha_table,
                                                             row_col_selector,
                                                             self.captcha_image_selector])
-            if self.captcha_iframe.is_element_present_by_css(image_selector, wait_time=3):
-                image_url = self.captcha_iframe.find_by_css(image_selector)['src']
+            if iframe.is_element_present_by_css(image_selector, wait_time=3):
+                image_url = iframe.find_by_css(image_selector)['src']
                 self.captcha.image_url = image_url
             else:
                 raise CaptchaImageNotFoundException("Cannot find original image.")
         except CaptchaImageNotFoundException as image_not_found:
             print(image_not_found.message, file=sys.stderr)
-            self.reload()
+            self.reload(iframe)
 
-    def get_image_checkboxes(self):
+    def get_image_checkboxes(self, iframe):
         print("Getting image checkbox elements.")
         rows = self.captcha.rows
         cols = self.captcha.cols
@@ -83,27 +83,27 @@ class CaptchaElement:
                                                                    row_col_selector,
                                                                    'div'])
 
-                if self.captcha_iframe.is_element_present_by_css(checkbox_selector, wait_time=3):
-                    checkbox_element = self.captcha_iframe.find_by_css(checkbox_selector)
+                if iframe.is_element_present_by_css(checkbox_selector, wait_time=3):
+                    checkbox_element = iframe.find_by_css(checkbox_selector)
                     image_checkboxes.append(Checkbox((row, col), checkbox_element))
                 else:
                     raise CheckboxNotFoundException("Can't find a checkbox at {0}, {1}"
                                                     .format(row, col))
         self.captcha.checkboxes = image_checkboxes
 
-    def verify(self):
+    def verify(self, iframe):
         print("Clicking verify.")
-        if self.captcha_iframe.is_element_present_by_id('recaptcha-verify-button', wait_time=3):
-            verify_button = self.captcha_iframe.find_by_id('recaptcha-verify-button')
+        if iframe.is_element_present_by_id('recaptcha-verify-button', wait_time=3):
+            verify_button = iframe.find_by_id('recaptcha-verify-button')
             verify_button.first.click()
 
-    def find_rows_and_cols(self):
+    def find_rows_and_cols(self, iframe):
         row_count = 0
         col_count = 0
         captcha_table_selector = '#rc-imageselect-target > table'
-        if self.captcha_iframe.is_element_present_by_css(captcha_table_selector,
+        if iframe.is_element_present_by_css(captcha_table_selector,
                                                          wait_time=3):
-            table = self.captcha_iframe.find_by_css(captcha_table_selector)
+            table = iframe.find_by_css(captcha_table_selector)
             row_count, col_count = table.first['class'].split(" ")[0].split('-')[3]
             row_count, col_count = int(row_count), int(col_count)
             print("rows from find_rows_and_cols: {0}, cols: {1}".format(row_count, col_count))
@@ -127,8 +127,8 @@ class CaptchaElement:
         checkboxes = self.captcha.checkboxes
         if checkboxes:
             for checkbox in checkboxes:
-                if checkbox['element'].visible:
-                    checkbox['element'].click()
+                if checkbox['checkbox'].visible:
+                    checkbox['checkbox'].click()
 
     def pick_checkboxes_from_positions(self, positions):
         image_checkboxes = self.captcha.checkboxes
@@ -154,10 +154,10 @@ class CaptchaElement:
         matching_image_checkboxes = self.pick_checkboxes_from_positions(matching_labels)
         return matching_image_checkboxes
 
-    def get_captcha_query(self):
+    def get_captcha_query(self, iframe):
         text_selector = 'div.rc-imageselect-desc-no-canonical'
-        if self.captcha_iframe.is_element_present_by_css(text_selector, wait_time=3):
-            captcha_text = self.captcha_iframe.find_by_css(text_selector).first['innerHTML']
+        if iframe.is_element_present_by_css(text_selector, wait_time=3):
+            captcha_text = iframe.find_by_css(text_selector).first['innerHTML']
             self.captcha.query = captcha_text
 
     def download_images(self, random_folder_name):
