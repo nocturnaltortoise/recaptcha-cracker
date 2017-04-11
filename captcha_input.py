@@ -23,7 +23,11 @@ class CaptchaCracker:
                 self.captcha_element.find_image_url(iframe)
                 self.captcha_element.get_image_checkboxes(iframe)
                 self.captcha_element.get_captcha_query(iframe)
-            print(self.captcha_element.captcha)
+
+                for checkbox in self.captcha_element.captcha.checkboxes:
+                    checkbox.image_url = self.captcha_element.captcha.image_url
+
+                # need to save images, set image paths for checkboxes
 
 captcha_cracker = CaptchaCracker()
 captcha_cracker.get_new_captcha()
