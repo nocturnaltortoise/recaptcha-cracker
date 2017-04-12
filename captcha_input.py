@@ -1,3 +1,4 @@
+import time
 import splinter
 
 from captcha_elements import Captcha, Checkbox
@@ -5,7 +6,7 @@ from captcha_interaction import CaptchaElement
 from exceptions import *
 from preprocessors import ImagePreprocessor, LabelProcessor
 import nn
-import time
+import config
 
 class CaptchaCracker:
     def __init__(self):
@@ -14,7 +15,7 @@ class CaptchaCracker:
         self.neural_net = None
 
     def setup(self):
-        url = 'https://nocturnaltortoise.github.io/captcha'
+        url = config.config['captcha_test_url']
         self.browser.visit(url)
         self.neural_net = nn.NeuralNetwork('weights/xception-less-data-weights.h5')
 
