@@ -28,7 +28,7 @@ class CaptchaElement:
             recaptcha_reload_button = iframe.find_by_id('recaptcha-reload-button')
             recaptcha_reload_button.first.click()
 
-            update_state_file(config.config['state_file_path'], correct=False)
+            # update_state_file(config.config['state_file_path'], correct=False)
 
     @staticmethod
     def join_selectors(selectors):

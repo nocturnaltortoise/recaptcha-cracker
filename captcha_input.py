@@ -18,11 +18,9 @@ class CaptchaCracker:
         url = config.config['captcha_test_url']
         self.browser.visit(url)
         self.neural_net = nn.NeuralNetwork('weights/xception-less-data-weights.h5')
+        self.captcha_element = CaptchaElement(self.browser)
 
     def get_new_captcha(self):
-        self.captcha_element = CaptchaElement(self.browser)
-        self.captcha_element.click_initial_checkbox()
-
         self.captcha_element.captcha = Captcha()
         captcha = self.captcha_element.captcha
 
@@ -55,11 +53,25 @@ class CaptchaCracker:
         matching_checkboxes = self.captcha_element.pick_checkboxes_matching_query(labels)
         with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
             self.captcha_element.click_checkboxes(matching_checkboxes)
+        return matching_checkboxes
+
+    def reload(self):
+        with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
+            self.captcha_element.reload(iframe)
+
+    def verify(self):
+        with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
+            self.captcha_element.verify(iframe)
 
 captcha_cracker = CaptchaCracker()
 captcha_cracker.setup()
-captcha_cracker.get_new_captcha()
-captcha_cracker.preprocess_images()
-labels = captcha_cracker.get_predictions()
-captcha_cracker.select_correct_checkboxes(labels)
-time.sleep(10)
+captcha_cracker.captcha_element.click_initial_checkbox()
+while True:
+    captcha_cracker.get_new_captcha()
+    captcha_cracker.preprocess_images()
+    labels = captcha_cracker.get_predictions()
+    matching_checkboxes = captcha_cracker.select_correct_checkboxes(labels)
+    if matching_checkboxes:
+        captcha_cracker.verify()
+    else:
+        captcha_cracker.reload()
