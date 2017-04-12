@@ -133,12 +133,11 @@ class LabelProcessor:
 
     @staticmethod
     def conflate_labels(image_label):
-        print("word labels: ", image_label)
-        conflated_labels = []
+        conflated_label_words = []
         for word in image_label:
-            conflated_labels.append(LabelProcessor.depluralise_string(word))
+            conflated_label_words.append(LabelProcessor.depluralise_string(word))
 
-        return conflated_labels
+        return conflated_label_words
 
     @staticmethod
     def read_categories(path):
@@ -197,7 +196,6 @@ class LabelProcessor:
 
     @staticmethod
     def convert_labels_to_label_names(labels):
-        print(labels)
         chosen_label_names = []
         for image_labels in labels:
             # names = np.load('names.npy')
