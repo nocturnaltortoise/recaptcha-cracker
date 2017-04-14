@@ -55,7 +55,7 @@ class NeuralNetwork:
         for image_predictions in images_predictions:
             individual_predictions = []
             for i, probability in enumerate(image_predictions):
-                if probability > 0.05:
+                if probability > 0.5:
                     individual_predictions.append((i,probability))
 
             all_predictions.append(individual_predictions)
