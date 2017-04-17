@@ -161,18 +161,18 @@ class CaptchaElement:
 
     def pick_checkboxes_matching_query(self, predicted_word_labels):
         query = self.captcha.query
-        matching_labels = []
+        matching_labels = set()
         for i, image_labels in enumerate(predicted_word_labels):
             for label in image_labels:
                 if " " in label:
                     for word in label.split(" "):
                         if word in query:
-                            matching_labels.append(i)
+                            matching_labels.add(i)
                 elif label == query:
-                    matching_labels.append(i)
+                    matching_labels.add(i)
         print(predicted_word_labels)
         print(matching_labels)
-        matching_image_checkboxes = self.pick_checkboxes_from_positions(matching_labels)
+        matching_image_checkboxes = self.pick_checkboxes_from_positions(list(matching_labels))
         return matching_image_checkboxes
 
     def get_captcha_query(self, iframe):
@@ -181,6 +181,8 @@ class CaptchaElement:
             captcha_text = iframe.find_by_css(text_selector).first['innerHTML']
             self.captcha.query = LabelProcessor.depluralise_string(captcha_text)
             print("query: ", self.captcha.query)
+        else:
+            raise QueryTextNotFoundException("Can't find query text.")
 
     def download_new_images(self):
         print("Downloading images.")
@@ -209,19 +211,7 @@ class CaptchaElement:
                 dimensions = (col * width, row * height, col * width + width, row * height + height)
                 individual_captcha_image = img.crop(dimensions)
                 filepath = "captcha-{0}-{1}.jpg".format(row, col)
-                if os.path.exists(filepath):
-                    old_image = list(Image.open(filepath).getdata())
-                    new_captcha_image = list(individual_captcha_image.getdata())
-                    diffs = [np.subtract(im1_pixel, im2_pixel) for im1_pixel, im2_pixel in zip(old_image,
-                                                                                               new_captcha_image)]
-                    if sum(sum(diffs)) == 0:
-                        same_images.append(True)
-                    else:
-                        same_images.append(False)
                 images.append((individual_captcha_image, row, col))
-
-        if same_images and all(same_value for same_value in same_images):
-            raise SameCaptchaException("Same images as previous CAPTCHA.")
 
         delete_old_images()
 

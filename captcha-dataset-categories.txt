@@ -59,7 +59,7 @@ palace 57
 railroad_track 58
 residential_neighborhood 59
 river 60
-shopfront 61
+store_front 61
 shopping_mall/indoor 62
 sky 63
 snowfield 64

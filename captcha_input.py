@@ -105,15 +105,17 @@ def start():
             captcha_cracker.preprocess_images()
             labels = captcha_cracker.get_predictions()
             matching_checkboxes = captcha_cracker.select_correct_checkboxes(labels)
+            verify_attempts = captcha_cracker.captcha_element.verify_attempts
             if matching_checkboxes:
                 time.sleep(2)
                 if captcha_cracker.captcha_changed():
                     continue
+                elif verify_attempts > 0:
+                    captcha_cracker.reload()
                 else:
                     captcha_cracker.verify()
                 captcha_cracker.num_guesses += 1
             else:
-                verify_attempts = captcha_cracker.captcha_element.verify_attempts
                 if captcha_cracker.captcha_changed() and verify_attempts < 1:
                     captcha_cracker.verify()
                 else:
@@ -133,7 +135,8 @@ def start():
                 StaleElementReferenceException,
                 CaptchaImageNotFoundException,
                 CheckboxNotFoundException,
-                InvalidElementStateException) as e:
+                InvalidElementStateException,
+                QueryTextNotFoundException) as e:
             print("Crashed: ", e)
             browser_reload()
 
