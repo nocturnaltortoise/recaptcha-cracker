@@ -116,7 +116,7 @@ def start():
                     captcha_cracker.verify()
                 captcha_cracker.num_guesses += 1
             else:
-                if captcha_cracker.captcha_changed() and verify_attempts < 1:
+                if captcha_cracker.captcha_changed() and verify_attempts < 2:
                     captcha_cracker.verify()
                 else:
                     captcha_cracker.reload()
