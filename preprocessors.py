@@ -16,7 +16,6 @@ class FilepathPreprocessor:
 
     @staticmethod
     def create_labels(train_path):
-        # this probably does too much
         paths = glob.glob("{0}/*".format(train_path))
         labels_file_path = config['labels_path']
         with open(labels_file_path, 'w+') as labels_file:
@@ -214,23 +213,3 @@ class LabelProcessor:
             chosen_label_names.append(label_names)
 
         return chosen_label_names
-
-    @staticmethod
-    def create_label_file_from_files(paths):
-        with open('E:\datasets\extra_data_labels.txt', 'w+') as extra_labels_file:
-            for path in paths:
-                for filepath in glob.glob(path):
-                    print(filepath)
-                    if "_32x32" not in filepath and "_110x110" not in filepath:
-                        if "trafficsigns-train" in filepath and "/00014" not in filepath:
-                            if ".ppm" in filepath:
-                                extra_labels_file.write(filepath + " " + "366" + "\n")
-                        elif "svhn-train" in filepath:
-                            if ".png" in filepath:
-                                extra_labels_file.write(filepath + " " + "365" + "\n")
-                        else:
-                            if ".ppm" in filepath:
-                                extra_labels_file.write(filepath + " " + "367" + "\n")
-
-        # maybe take a labels - foldername dictionary
-        # e.g. svhn-train: 365, traffic-signs-train: 366, traffic-signs-train/00014: 367
