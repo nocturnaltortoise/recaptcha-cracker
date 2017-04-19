@@ -4,13 +4,14 @@ from sklearn.model_selection import train_test_split
 from preprocessors import ImagePreprocessor, FilepathPreprocessor, LabelProcessor
 import numpy as np
 import os.path
+from config import config
 
 
 class NeuralNetwork:
 
     def __init__(self, weights_file=None, continue_training=False, start_epoch=None):
         self.num_epochs = 100
-        self.train_files, self.train_labels = LabelProcessor.read_labels(['captcha-dataset-labels.txt'])
+        self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
         self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
                                                                                                   self.train_labels,
                                                                                                   test_size=0.1,
@@ -45,7 +46,7 @@ class NeuralNetwork:
 
 
     def predict_image_classes(self):
-        images = skimage.io.imread_collection('*_93x93.jpg')
+        images = skimage.io.imread_collection('*_{0}.jpg'.format(config['image_size']))
         image_array = skimage.io.concatenate_images(images)
         image_array = ImagePreprocessor.normalise(image_array)
 
@@ -74,8 +75,8 @@ class NeuralNetwork:
                       metrics=['categorical_accuracy'])
 
     def xception(self, include_top=True):
-        if os.path.exists('xception-less-data-model.yaml'):
-            with open('xception-less-data-model.yaml', 'r') as f:
+        if os.path.exists(config['model_path']):
+            with open(config['model_path'], 'r') as f:
                 loaded_model_yaml = f.read()
                 return keras.models.model_from_yaml(loaded_model_yaml)
         else:
@@ -176,7 +177,7 @@ class NeuralNetwork:
             model = keras.models.Model(img_input, x)
 
             model_yaml = model.to_yaml()
-            with open('xception-less-data-model.yaml', 'w+') as f:
+            with open(config['model_path'], 'w+') as f:
                 f.write(model_yaml)
 
             return model
@@ -186,7 +187,7 @@ class NeuralNetwork:
         while True:
             print("loading train chunk {0}".format(i / chunk_size))
             chunk_filepaths = FilepathPreprocessor.process_filepaths(self.train_files[i:i + chunk_size],
-                                                                     ['E:/datasets/captcha-dataset/'])
+                                                                     [config['dataset_path']])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -202,7 +203,7 @@ class NeuralNetwork:
         while True:
             print("loading validation chunk {0}".format(i / chunk_size))
             chunk_filepaths = FilepathPreprocessor.process_filepaths(self.validation_files[i:i + chunk_size],
-                                                                     ['E:/datasets/captcha-dataset/'])
+                                                                     [config['dataset_path']])
             ImagePreprocessor.resize_images(chunk_filepaths)
             chunk_filepaths = FilepathPreprocessor.change_filepaths_after_resize(chunk_filepaths)
             ImagePreprocessor.colour_images(chunk_filepaths)
@@ -214,11 +215,11 @@ class NeuralNetwork:
                 i = 0
 
     def train_network(self, start_epoch=None):
-        tensorboard = keras.callbacks.TensorBoard(log_dir='./logs/xception-less-data',
+        tensorboard = keras.callbacks.TensorBoard(log_dir=config['log_path'],
                                                   histogram_freq=0,
                                                   write_graph=True,
                                                   write_images=False)
-        checkpointer = keras.callbacks.ModelCheckpoint(filepath="xception-less-data-weights.h5",
+        checkpointer = keras.callbacks.ModelCheckpoint(filepath=config['weights_path'],
                                                        verbose=1,
                                                        save_best_only=True)
         self.model.fit_generator(self.next_train_batch(chunk_size=25),
@@ -228,6 +229,3 @@ class NeuralNetwork:
                                  nb_val_samples=int(self.validation_size / (self.num_epochs / 4)),
                                  callbacks=[checkpointer, tensorboard],
                                  initial_epoch=start_epoch)
-        # should make a callback that writes an epoch number to a file for resuming
-
-# neural_net = NeuralNetwork('xception-less-data-weights.h5', continue_training=True, start_epoch=10)

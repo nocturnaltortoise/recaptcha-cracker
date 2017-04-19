@@ -9,6 +9,7 @@ from keras.utils import np_utils
 import inflection
 import numpy as np
 import re
+from config import config
 
 
 class FilepathPreprocessor:
@@ -17,7 +18,7 @@ class FilepathPreprocessor:
     def create_labels(train_path):
         # this probably does too much
         paths = glob.glob("{0}/*".format(train_path))
-        labels_file_path = '../../datasets/captcha-dataset-labels.txt'
+        labels_file_path = config['labels_path']
         with open(labels_file_path, 'w+') as labels_file:
             for i, path in enumerate(paths):
                 for path_tuple in os.walk(path):
@@ -31,7 +32,8 @@ class FilepathPreprocessor:
                         for filename in files:
                             path, ext = os.path.splitext(filename)
                             if ext == '.png' or ext == '.jpg' or ext == '.ppm':
-                                if "_93x93" not in path:
+                                image_size = "_{0}".format(config['image_size'])
+                                if image_size not in path:
                                     image_files.append(os.path.join(label, filename))
                         print(label_number, len(image_files))
 
@@ -65,9 +67,10 @@ class FilepathPreprocessor:
     def change_filepaths_after_resize(paths):
         resize_paths = []
         for path in paths:
-            if "_93x93" not in path:
+            image_size = "_{0}".format(config['image_size'])
+            if image_size not in path:
                 name, ext = os.path.splitext(path)
-                path = name + "_93x93" + ext
+                path = name + image_size + ext
             resize_paths.append(path)
 
         return resize_paths
@@ -81,15 +84,16 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                new_filename = filename + "_93x93" + ext
+                image_size = "_{0}".format(config['image_size'])
+                new_filename = filename + image_size + ext
                 if not os.path.exists(new_filename) or os.path.getsize(new_filename) == 0:
                     # if the file hasn't been resized
                     # or the resized version is corrupt (i.e. zero size)
-                    if "_93x93" not in filename:
+                    if image_size not in filename:
                         try:
                             image = Image.open(path)
-                            image = image.resize((93, 93))
-                            image.save(filename + "_93x93" + ext)
+                            image = image.resize(config['image_size_tuple'])
+                            image.save(filename + image_size + ext)
                         except OSError:
                             print("OSError caused by file at {0}".format(path))
                             continue
@@ -102,7 +106,8 @@ class ImagePreprocessor:
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
-                if "_93x93" in filename:
+                image_size = "_{0}".format(config['image_size'])
+                if image_size in filename:
                     try:
                         image = Image.open(path)
                         if image.mode != "RGB":

@@ -8,18 +8,19 @@ from captcha_files import delete_old_images
 from exceptions import *
 from preprocessors import ImagePreprocessor, LabelProcessor
 import nn
-import config
+from config import config
 
 class CaptchaCracker:
     def __init__(self):
         self.captcha_element = None
         self.browser = splinter.Browser()
-        self.neural_net = nn.NeuralNetwork('weights/xception-less-data-weights.h5')
+        self.neural_net = nn.NeuralNetwork(config['weights_path'])
         self.num_correct = 0
         self.num_guesses = 0
+        self.old_captcha_urls = []
 
     def setup(self):
-        url = config.config['captcha_test_url']
+        url = config['captcha_test_url']
         self.browser.visit(url)
         self.captcha_element = CaptchaElement(self.browser)
 
@@ -32,8 +33,12 @@ class CaptchaCracker:
             self.captcha_element.find_image_url(iframe)
             self.captcha_element.get_captcha_query(iframe)
             self.captcha_element.get_image_checkboxes(iframe)
-            self.captcha_element.get_image_urls_for_checkboxes(iframe,
-                                                               captcha.checkboxes)
+            checkbox_urls = [checkbox.image_url for checkbox in captcha.checkboxes]
+            if checkbox_urls == self.old_captcha_urls:
+                raise SameCaptchaException("Same CAPTCHA as previous CAPTCHA.")
+            else:
+                self.old_captcha_urls = checkbox_urls
+
             if self.captcha_changed():
                 captcha.checkboxes = [checkbox for checkbox in captcha.checkboxes
                                       if captcha.image_url != checkbox.image_url]
@@ -55,10 +60,11 @@ class CaptchaCracker:
         all_label_names = LabelProcessor.convert_labels_to_label_names(all_labels)
         all_label_names = [LabelProcessor.conflate_labels(label_names) for label_names in all_label_names]
         print("labels: ", all_label_names)
-        return all_label_names
+        for i, checkbox in enumerate(self.captcha_element.captcha.checkboxes):
+            checkbox.predictions = all_label_names[i]
 
-    def select_correct_checkboxes(self, labels):
-        matching_checkboxes = self.captcha_element.pick_checkboxes_matching_query(labels)
+    def select_correct_checkboxes(self):
+        matching_checkboxes = self.captcha_element.pick_checkboxes_matching_query()
         with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
             self.captcha_element.click_checkboxes(matching_checkboxes)
         return matching_checkboxes
@@ -103,26 +109,22 @@ def start():
         try:
             captcha_cracker.get_new_captcha()
             captcha_cracker.preprocess_images()
-            labels = captcha_cracker.get_predictions()
-            matching_checkboxes = captcha_cracker.select_correct_checkboxes(labels)
-            verify_attempts = captcha_cracker.captcha_element.verify_attempts
+            captcha_cracker.get_predictions()
+            matching_checkboxes = captcha_cracker.select_correct_checkboxes()
+            time.sleep(2)
             if matching_checkboxes:
-                time.sleep(2)
                 if captcha_cracker.captcha_changed():
                     continue
-                elif verify_attempts > 0:
-                    captcha_cracker.reload()
                 else:
                     captcha_cracker.verify()
-                captcha_cracker.num_guesses += 1
+                    captcha_cracker.num_guesses += 1
             else:
-                if captcha_cracker.captcha_changed() and verify_attempts < 2:
+                if captcha_cracker.captcha_changed():
                     captcha_cracker.verify()
                 else:
                     captcha_cracker.reload()
                 captcha_cracker.num_guesses += 1
 
-            time.sleep(2)
             if captcha_cracker.captcha_correct():
                 captcha_cracker.num_correct += 1
 

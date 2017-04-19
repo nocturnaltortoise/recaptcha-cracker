@@ -1,14 +1,10 @@
-import glob
-import json
 import os
-import sys
-from PIL import Image, ImageChops
-import numpy as np
-import requests
+import uuid
 from exceptions import *
-from captcha_files import update_state_file, delete_old_images
+from PIL import Image
+import requests
+from captcha_files import delete_old_images
 from captcha_elements import Checkbox
-import config
 from preprocessors import LabelProcessor
 from selenium.common.exceptions import StaleElementReferenceException
 
@@ -22,16 +18,12 @@ class CaptchaElement:
         self.captcha_iframe_name = self.captcha_iframe_element.first['name']
         self.captcha_table = '#rc-imageselect-target > table > tbody'
         self.captcha_image_selector = 'div > div.rc-image-tile-wrapper > img'
-        self.verify_attempts = 0
 
     def reload(self, iframe):
         print("Reloading captcha iframe...")
         if iframe.is_element_present_by_id('recaptcha-reload-button', wait_time=3):
             recaptcha_reload_button = iframe.find_by_id('recaptcha-reload-button')
             CaptchaElement.click_element(recaptcha_reload_button.first)
-            self.verify_attempts = 0
-
-            # update_state_file(config.config['state_file_path'], correct=False)
 
     def captcha_correct(self):
         if self.browser.is_element_present_by_name('undefined', wait_time=3):
@@ -48,22 +40,6 @@ class CaptchaElement:
     @staticmethod
     def join_selectors(selectors):
         return " > ".join(selectors)
-
-    def get_image_urls_for_checkboxes(self, iframe, checkboxes):
-        for i, checkbox in enumerate(checkboxes):
-            row, col = checkbox.position
-            row_col_selector = 'tr:nth-child({0}) > td:nth-child({1})'.format(row, col)
-            checkbox_selector = CaptchaElement.join_selectors(
-                [self.captcha_table,
-                 row_col_selector,
-                 self.captcha_image_selector])
-            if iframe.is_element_present_by_css(checkbox_selector,
-                                                wait_time=3):
-                image_url = iframe.find_by_css(checkbox_selector)['src']
-                self.captcha.checkboxes[i].image_url = image_url
-            else:
-                raise CaptchaImageNotFoundException(
-                    "Cannot find new image at {0},{1}".format(row, col))
 
     def find_image_url(self, iframe):
         print("Getting URLs.")
@@ -91,9 +67,14 @@ class CaptchaElement:
                 checkbox_selector = CaptchaElement.join_selectors([self.captcha_table,
                                                                    row_col_selector,
                                                                    'div'])
+                image_selector = CaptchaElement.join_selectors([self.captcha_table,
+                                                                row_col_selector,
+                                                                self.captcha_image_selector])
                 if iframe.is_element_present_by_css(checkbox_selector, wait_time=3):
                     checkbox_element = iframe.find_by_css(checkbox_selector)
-                    image_checkboxes.append(Checkbox((row, col), checkbox_element))
+                    image_element = iframe.find_by_css(image_selector)
+                    image_url = image_element['src']
+                    image_checkboxes.append(Checkbox((row, col), checkbox_element, image_url))
                 else:
                     raise CheckboxNotFoundException("Can't find a checkbox at {0}, {1}"
                                                     .format(row, col))
@@ -104,7 +85,6 @@ class CaptchaElement:
         if iframe.is_element_present_by_id('recaptcha-verify-button', wait_time=3):
             verify_button = iframe.find_by_id('recaptcha-verify-button')
             CaptchaElement.click_element(verify_button.first)
-            self.verify_attempts += 1
 
     def find_rows_and_cols(self, iframe):
         row_count = 0
@@ -159,21 +139,19 @@ class CaptchaElement:
             checkboxes.append(image_checkboxes[pos])
         return checkboxes
 
-    def pick_checkboxes_matching_query(self, predicted_word_labels):
+    def pick_checkboxes_matching_query(self):
         query = self.captcha.query
-        matching_labels = set()
-        for i, image_labels in enumerate(predicted_word_labels):
+        matching_checkboxes = set()
+        for checkbox in self.captcha.checkboxes:
+            image_labels = checkbox.predictions
             for label in image_labels:
                 if " " in label:
                     for word in label.split(" "):
                         if word in query:
-                            matching_labels.add(i)
+                            matching_checkboxes.add(checkbox)
                 elif label == query:
-                    matching_labels.add(i)
-        print(predicted_word_labels)
-        print(matching_labels)
-        matching_image_checkboxes = self.pick_checkboxes_from_positions(list(matching_labels))
-        return matching_image_checkboxes
+                    matching_checkboxes.add(checkbox)
+        return matching_checkboxes
 
     def get_captcha_query(self, iframe):
         text_selector = 'div.rc-imageselect-desc-no-canonical > strong'
@@ -202,10 +180,8 @@ class CaptchaElement:
         width = img.size[0] / self.captcha.cols
         height = img.size[1] / self.captcha.rows
 
-        # captcha_folder = os.path.join('datasets', 'captchas', self.captcha.query)
         filepaths = []
         images = []
-        same_images = []
         for row in range(self.captcha.rows):
             for col in range(self.captcha.cols):
                 dimensions = (col * width, row * height, col * width + width, row * height + height)
@@ -223,10 +199,24 @@ class CaptchaElement:
 
         for i, checkbox in enumerate(self.captcha.checkboxes):
             checkbox.image_path = filepaths[i]
-                # this should be somewhere else
-                # if not os.path.exists(captcha_folder):
-                #     os.mkdir(captcha_folder)
-                #
-                # if not os.path.exists(captcha_folder + "/" + random_folder_name):
-                #     os.mkdir("{0}/{1}".format(captcha_folder, random_folder_name))
-                # individual_captcha_image.save("{0}/{1}/{2}-{3}.jpg".format(captcha_folder, random_folder_name, row, col), "JPEG")
+
+        self.save_images_permanently(self.captcha.checkboxes, images)
+
+    def save_images_permanently(self, checkboxes, images):
+        captcha_folder = os.path.join('datasets', 'captchas', self.captcha.query)
+
+        if not os.path.exists(captcha_folder):
+            os.mkdir(captcha_folder)
+
+        random_folder_name = str(uuid.uuid4())
+
+        for i, image in enumerate(images):
+            image, row, col = image
+            checkbox = checkboxes[i]
+
+            if not os.path.exists(captcha_folder + "/" + random_folder_name):
+                os.mkdir("{0}/{1}".format(captcha_folder, random_folder_name))
+            filepath = "{0}/{1}/{2}-{3}.jpg".format(captcha_folder, random_folder_name, row, col)
+            image.save(filepath, "JPEG")
+
+            checkbox.permanent_path = filepath
