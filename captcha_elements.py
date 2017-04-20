@@ -5,9 +5,15 @@ class Captcha:
         self.image_url = ''
         self.checkboxes = []
         self.query = ''
+        self.random_id = ''
 
     def __str__(self):
-        return "query: {0}, rows: {1}, cols: {2}, image_url: {3}, checkboxes: {4}".format(self.query, self.rows, self.cols, self.image_url, len(self.checkboxes))
+        return "query: {0}, rows: {1}, cols: {2}, image_url: {3}, checkboxes: {4}".format(
+            self.query,
+            self.rows,
+            self.cols,
+            self.image_url,
+            len(self.checkboxes))
 
 class Checkbox:
     def __init__(self, position, element, image_url):

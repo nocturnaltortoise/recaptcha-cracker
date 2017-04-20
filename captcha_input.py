@@ -4,7 +4,7 @@ from selenium.common.exceptions import ElementNotVisibleException, StaleElementR
 
 from captcha_elements import Captcha, Checkbox
 from captcha_interaction import CaptchaElement
-from captcha_files import delete_old_images
+from captcha_files import delete_old_images, write_guesses_to_file
 from exceptions import *
 from preprocessors import ImagePreprocessor, LabelProcessor
 import nn
@@ -59,7 +59,7 @@ class CaptchaCracker:
         all_labels = self.neural_net.predict_image_classes()
         all_label_names = LabelProcessor.convert_labels_to_label_names(all_labels)
         all_label_names = [LabelProcessor.conflate_labels(label_names) for label_names in all_label_names]
-        print("labels: ", all_label_names)
+        # print("labels: ", all_label_names)
         for i, checkbox in enumerate(self.captcha_element.captcha.checkboxes):
             checkbox.predictions = all_label_names[i]
 
@@ -83,8 +83,9 @@ class CaptchaCracker:
         return False
 
     def print_stats(self):
-        print("Guesses: {0}, Correct: {1}, Percent: {2}"
-              .format(self.num_guesses,
+        print("Max: {0}, Guesses: {1}, Correct: {2}, Percent: {3}"
+              .format(MAX_RUNS,
+                      self.num_guesses,
                       self.num_correct,
                       self.num_correct / captcha_cracker.num_guesses))
 
@@ -95,23 +96,26 @@ def browser_reload():
     captcha_cracker.captcha_element.browser.reload()
     start()
 
+MAX_RUNS = 100
 def start():
     captcha_cracker.setup()
     captcha_cracker.captcha_element.click_initial_checkbox()
-    time.sleep(2)
+    time.sleep(1.5)
     if captcha_cracker.captcha_correct():
+        print("Correct")
         captcha_cracker.num_guesses += 1
         captcha_cracker.num_correct += 1
         captcha_cracker.print_stats()
         browser_reload()
 
-    while True:
+    while captcha_cracker.num_guesses < MAX_RUNS:
         try:
             captcha_cracker.get_new_captcha()
             captcha_cracker.preprocess_images()
             captcha_cracker.get_predictions()
             matching_checkboxes = captcha_cracker.select_correct_checkboxes()
-            time.sleep(2)
+            write_guesses_to_file(captcha_cracker.captcha_element.captcha, matching_checkboxes)
+            time.sleep(1)
             if matching_checkboxes:
                 if captcha_cracker.captcha_changed():
                     continue
@@ -125,13 +129,14 @@ def start():
                     captcha_cracker.reload()
                 captcha_cracker.num_guesses += 1
 
+            time.sleep(1.5)
             if captcha_cracker.captcha_correct():
                 captcha_cracker.num_correct += 1
 
             captcha_cracker.print_stats()
 
         except SameCaptchaException:
-            print("Same CAPTCHA, getting new CAPTCHA.")
+            # print("Same CAPTCHA, getting new CAPTCHA.")
             browser_reload()
         except (ElementNotVisibleException,
                 StaleElementReferenceException,
@@ -139,7 +144,7 @@ def start():
                 CheckboxNotFoundException,
                 InvalidElementStateException,
                 QueryTextNotFoundException) as e:
-            print("Crashed: ", e)
+            # print("Crashed: ", e)
             browser_reload()
 
 captcha_cracker = CaptchaCracker()

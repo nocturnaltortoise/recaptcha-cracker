@@ -20,13 +20,10 @@ class NeuralNetwork:
                                                                                                               self.train_labels,
                                                                                                               test_size=0.2,
                                                                                                               random_state=124)
-        print("unique train labels: ", len(np.unique(self.train_labels)))
         self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
         self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
         self.train_size = len(self.train_files)
-        print(self.train_size)
         self.validation_size = len(self.validation_files)
-        print(self.validation_size)
 
         if weights_file is not None and continue_training:
             self.model = self.xception(include_top=True)
@@ -63,11 +60,9 @@ class NeuralNetwork:
 
         all_predictions = [[class_label for (class_label, probability) in sorted(individual_predictions, key=lambda x:x[1], reverse=True)] for individual_predictions in all_predictions]
 
-        # print(all_predictions)
         return all_predictions
 
     def compile_network(self):
-        print("Compiling network.")
         learning_rate = 0.01
         decay = 1e-6
         sgd = keras.optimizers.SGD(lr=learning_rate, momentum=0.9, decay=decay, nesterov=True)

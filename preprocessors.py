@@ -34,7 +34,6 @@ class FilepathPreprocessor:
                                 image_size = "_{0}".format(config['image_size'])
                                 if image_size not in path:
                                     image_files.append(os.path.join(label, filename))
-                        print(label_number, len(image_files))
 
                         for file in image_files:
                             file_line = file + " " + str(i) + "\n"
@@ -55,8 +54,6 @@ class FilepathPreprocessor:
             full_path = full_path.replace("\\", "/")
             if os.path.isfile(full_path) and os.path.getsize(full_path) > 0:
                 new_paths.append(full_path)
-            else:
-                print(full_path)
                 # filenames for training images have a leading slash,
                 # which causes problems on windows with os.path.join
 
@@ -79,7 +76,6 @@ class ImagePreprocessor:
 
     @staticmethod
     def resize_images(paths):
-        print("resizing images")
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
@@ -101,7 +97,6 @@ class ImagePreprocessor:
 
     @staticmethod
     def colour_images(paths):
-        print("colouring images")
         for path in paths:
             if os.path.isfile(path) and os.path.getsize(path) > 0:
                 filename, ext = os.path.splitext(path)
@@ -110,7 +105,6 @@ class ImagePreprocessor:
                     try:
                         image = Image.open(path)
                         if image.mode != "RGB":
-                            print("image not RGB, colouring")
                             image = image.convert("RGB")
                             image.save(filename + ext)
                     except OSError:
@@ -184,7 +178,6 @@ class LabelProcessor:
         labels = []
         filenames = []
         for path in paths:
-            print("reading labels in {0}".format(path))
             with open(path, 'r') as label_file:
                 for line in label_file:
                     filename, label = line.split(" ")
@@ -195,14 +188,12 @@ class LabelProcessor:
 
     @staticmethod
     def convert_to_one_hot(labels):
-        print("converting to one hot")
         return np_utils.to_categorical(labels)
 
     @staticmethod
     def convert_labels_to_label_names(labels):
         chosen_label_names = []
         for image_labels in labels:
-            # names = np.load('names.npy')
             labels_to_label_names = LabelProcessor.read_categories('captcha-dataset-categories.txt')
 
             label_names = [labels_to_label_names[label] for label in image_labels]
