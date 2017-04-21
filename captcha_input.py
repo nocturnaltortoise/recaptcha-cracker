@@ -96,13 +96,12 @@ def browser_reload():
     captcha_cracker.captcha_element.browser.reload()
     start()
 
-MAX_RUNS = 100
+MAX_RUNS = 1000
 def start():
     captcha_cracker.setup()
     captcha_cracker.captcha_element.click_initial_checkbox()
     time.sleep(1.5)
     if captcha_cracker.captcha_correct():
-        print("Correct")
         captcha_cracker.num_guesses += 1
         captcha_cracker.num_correct += 1
         captcha_cracker.print_stats()
@@ -114,7 +113,6 @@ def start():
             captcha_cracker.preprocess_images()
             captcha_cracker.get_predictions()
             matching_checkboxes = captcha_cracker.select_correct_checkboxes()
-            write_guesses_to_file(captcha_cracker.captcha_element.captcha, matching_checkboxes)
             time.sleep(1)
             if matching_checkboxes:
                 if captcha_cracker.captcha_changed():
@@ -130,21 +128,21 @@ def start():
                 captcha_cracker.num_guesses += 1
 
             time.sleep(1.5)
-            if captcha_cracker.captcha_correct():
+            captcha_correct = captcha_cracker.captcha_correct()
+            if captcha_correct:
                 captcha_cracker.num_correct += 1
 
+            write_guesses_to_file(captcha_cracker.captcha_element.captcha, matching_checkboxes, captcha_correct)
             captcha_cracker.print_stats()
 
         except SameCaptchaException:
-            # print("Same CAPTCHA, getting new CAPTCHA.")
             browser_reload()
         except (ElementNotVisibleException,
                 StaleElementReferenceException,
                 CaptchaImageNotFoundException,
                 CheckboxNotFoundException,
                 InvalidElementStateException,
-                QueryTextNotFoundException) as e:
-            # print("Crashed: ", e)
+                QueryTextNotFoundException):
             browser_reload()
 
 captcha_cracker = CaptchaCracker()

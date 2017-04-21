@@ -38,16 +38,22 @@ def make_mistake(captcha_iframe, mistake_count):
             verify_button.first.click()
 
 
+def load_queries(path):
+    queries = None
+    if os.path.isfile(path) and os.path.getsize(path) > 0:
+        with open(path, 'r') as f:
+            queries = json.load(f)
+
+    return queries
+
+
 with Browser() as browser:
     url = "https://nocturnaltortoise.github.io/captcha"
     browser.visit(url)
 
-    queries = {}
-    if os.path.isfile('queries.json') and os.path.getsize('queries.json') > 0:
-        with open('queries.json', 'r') as f:
-            queries = json.load(f)
-    else:
-        print("file is empty")
+    queries = load_queries('queries.json')
+    if not queries:
+        queries = {}
 
     try:
         with browser.get_iframe('undefined') as iframe:
@@ -69,4 +75,3 @@ with Browser() as browser:
 
     except Exception as e:
         print(e)
-        browser.screenshot('error')
