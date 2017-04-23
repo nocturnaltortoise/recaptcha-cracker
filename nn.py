@@ -5,12 +5,13 @@ from preprocessors import ImagePreprocessor, FilepathPreprocessor, LabelProcesso
 import numpy as np
 import os.path
 from config import config
+import keras.applications.xception
 
 
 class NeuralNetwork:
 
     def __init__(self, weights_file=None, continue_training=False, start_epoch=None):
-        self.num_epochs = 100
+        self.num_epochs = 5
         self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
         self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
                                                                                                   self.train_labels,
@@ -63,119 +64,33 @@ class NeuralNetwork:
         return all_predictions
 
     def compile_network(self):
-        learning_rate = 0.01
-        decay = 1e-6
+        learning_rate = 0.045
+        decay = 0.94
         sgd = keras.optimizers.SGD(lr=learning_rate, momentum=0.9, decay=decay, nesterov=True)
         self.model.compile(loss='categorical_crossentropy', optimizer=sgd,
-                      metrics=['categorical_accuracy'])
+                      metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
     def xception(self, include_top=True):
-        if os.path.exists(config['model_path']):
-            with open(config['model_path'], 'r') as f:
-                loaded_model_yaml = f.read()
-                return keras.models.model_from_yaml(loaded_model_yaml)
+        num_classes = self.train_labels.shape[1]
+        size = config['image_size_tuple']
+        width = size[0]
+        height = size[1]
+        img_input = keras.layers.Input(shape=(size[0], size[1], 3))
+
+        if include_top:
+            model = keras.applications.xception.Xception(
+                include_top=True, 
+                weights=None, 
+                input_tensor=img_input,
+                classes=num_classes)
         else:
-            num_classes = self.train_labels.shape[1]
-            img_input = keras.layers.Input(shape=(93, 93, 3))
+            model = keras.applications.xception.Xception(
+                include_top=False, 
+                weights=None, 
+                input_tensor=img_input,
+                pooling='avg')
 
-            x = keras.layers.Conv2D(32, 3, 3, subsample=(2, 2), bias=False, name='block1_conv1')(img_input)
-            x = keras.layers.BatchNormalization(name='block1_conv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block1_conv1_act')(x)
-            x = keras.layers.Conv2D(64, 3, 3, bias=False, name='block1_conv2')(x)
-            x = keras.layers.BatchNormalization(name='block1_conv2_bn')(x)
-            x = keras.layers.Activation('relu', name='block1_conv2_act')(x)
-
-            residual = keras.layers.Conv2D(128, 1, 1, subsample=(2, 2),
-                                           border_mode='same', bias=False)(x)
-            residual = keras.layers.BatchNormalization()(residual)
-
-            x = keras.layers.SeparableConv2D(128, 3, 3, border_mode='same', bias=False, name='block2_sepconv1')(x)
-            x = keras.layers.BatchNormalization(name='block2_sepconv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block2_sepconv2_act')(x)
-            x = keras.layers.SeparableConv2D(128, 3, 3, border_mode='same', bias=False, name='block2_sepconv2')(x)
-            x = keras.layers.BatchNormalization(name='block2_sepconv2_bn')(x)
-
-            x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', name='block2_pool')(x)
-            x = keras.layers.merge([x, residual], mode='sum')
-
-            residual = keras.layers.Conv2D(256, 1, 1, subsample=(2, 2),
-                                           border_mode='same', bias=False)(x)
-            residual = keras.layers.BatchNormalization()(residual)
-
-            x = keras.layers.Activation('relu', name='block3_sepconv1_act')(x)
-            x = keras.layers.SeparableConv2D(256, 3, 3, border_mode='same', bias=False, name='block3_sepconv1')(x)
-            x = keras.layers.BatchNormalization(name='block3_sepconv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block3_sepconv2_act')(x)
-            x = keras.layers.SeparableConv2D(256, 3, 3, border_mode='same', bias=False, name='block3_sepconv2')(x)
-            x = keras.layers.BatchNormalization(name='block3_sepconv2_bn')(x)
-
-            x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', name='block3_pool')(x)
-            x = keras.layers.merge([x, residual], mode='sum')
-
-            residual = keras.layers.Conv2D(728, 1, 1, subsample=(2, 2),
-                                           border_mode='same', bias=False)(x)
-            residual = keras.layers.BatchNormalization()(residual)
-
-            x = keras.layers.Activation('relu', name='block4_sepconv1_act')(x)
-            x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name='block4_sepconv1')(x)
-            x = keras.layers.BatchNormalization(name='block4_sepconv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block4_sepconv2_act')(x)
-            x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name='block4_sepconv2')(x)
-            x = keras.layers.BatchNormalization(name='block4_sepconv2_bn')(x)
-
-            x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', name='block4_pool')(x)
-            x = keras.layers.merge([x, residual], mode='sum')
-
-            for i in range(8):
-                residual = x
-                prefix = 'block' + str(i + 5)
-
-                x = keras.layers.Activation('relu', name=prefix + '_sepconv1_act')(x)
-                x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name=prefix + '_sepconv1')(x)
-                x = keras.layers.BatchNormalization(name=prefix + '_sepconv1_bn')(x)
-                x = keras.layers.Activation('relu', name=prefix + '_sepconv2_act')(x)
-                x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name=prefix + '_sepconv2')(x)
-                x = keras.layers.BatchNormalization(name=prefix + '_sepconv2_bn')(x)
-                x = keras.layers.Activation('relu', name=prefix + '_sepconv3_act')(x)
-                x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name=prefix + '_sepconv3')(x)
-                x = keras.layers.BatchNormalization(name=prefix + '_sepconv3_bn')(x)
-
-                x = keras.layers.merge([x, residual], mode='sum')
-
-            residual = keras.layers.Conv2D(1024, 1, 1, subsample=(2, 2),
-                                           border_mode='same', bias=False)(x)
-            residual = keras.layers.BatchNormalization()(residual)
-
-            x = keras.layers.Activation('relu', name='block13_sepconv1_act')(x)
-            x = keras.layers.SeparableConv2D(728, 3, 3, border_mode='same', bias=False, name='block13_sepconv1')(x)
-            x = keras.layers.BatchNormalization(name='block13_sepconv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block13_sepconv2_act')(x)
-            x = keras.layers.SeparableConv2D(1024, 3, 3, border_mode='same', bias=False, name='block13_sepconv2')(x)
-            x = keras.layers.BatchNormalization(name='block13_sepconv2_bn')(x)
-
-            x = keras.layers.MaxPooling2D((3, 3), strides=(2, 2), border_mode='same', name='block13_pool')(x)
-            x = keras.layers.merge([x, residual], mode='sum')
-
-            x = keras.layers.SeparableConv2D(1536, 3, 3, border_mode='same', bias=False, name='block14_sepconv1')(x)
-            x = keras.layers.BatchNormalization(name='block14_sepconv1_bn')(x)
-            x = keras.layers.Activation('relu', name='block14_sepconv1_act')(x)
-
-            x = keras.layers.SeparableConv2D(2048, 3, 3, border_mode='same', bias=False, name='block14_sepconv2')(x)
-            x = keras.layers.BatchNormalization(name='block14_sepconv2_bn')(x)
-            x = keras.layers.Activation('relu', name='block14_sepconv2_act')(x)
-
-            if include_top:
-                x = keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
-                x = keras.layers.Dense(num_classes, activation='softmax', name='predictions')(x)
-
-            # Create model
-            model = keras.models.Model(img_input, x)
-
-            model_yaml = model.to_yaml()
-            with open(config['model_path'], 'w+') as f:
-                f.write(model_yaml)
-
-            return model
+        return model
 
     def next_train_batch(self, chunk_size):
         i = 0
@@ -217,10 +132,11 @@ class NeuralNetwork:
         checkpointer = keras.callbacks.ModelCheckpoint(filepath=config['weights_path'],
                                                        verbose=1,
                                                        save_best_only=True)
-        self.model.fit_generator(self.next_train_batch(chunk_size=25),
-                                 samples_per_epoch=int(self.train_size / (self.num_epochs / 4)),
+        self.model.fit_generator(self.next_train_batch(chunk_size=16),
+                                 samples_per_epoch=self.train_size,
                                  nb_epoch=self.num_epochs,
-                                 validation_data=self.next_validation_batch(chunk_size=20),
-                                 nb_val_samples=int(self.validation_size / (self.num_epochs / 4)),
-                                 callbacks=[checkpointer, tensorboard],
-                                 initial_epoch=start_epoch)
+                                 validation_data=self.next_validation_batch(chunk_size=16),
+                                 nb_val_samples=self.validation_size,
+                                 callbacks=[checkpointer, tensorboard])
+
+neural_net = NeuralNetwork()
