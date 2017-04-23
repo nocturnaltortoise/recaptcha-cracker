@@ -97,7 +97,7 @@ class CaptchaElement:
                 checkbox_selector = '#recaptcha-anchor > div.recaptcha-checkbox-checkmark'
                 if iframe.is_element_present_by_css(checkbox_selector, wait_time=3):
                     captcha_checkbox = iframe.find_by_css(checkbox_selector)
-                    captcha_checkbox.first.click()
+                    CaptchaElement.click_element(captcha_checkbox.first)
                 else:
                     raise InitialCheckboxNotFoundException("Can't find initial checkbox.")
         else:
