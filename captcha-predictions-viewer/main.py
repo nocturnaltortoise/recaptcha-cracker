@@ -3,6 +3,7 @@ import json
 import skimage.io
 import os
 import numpy as np
+import textwrap
 
 
 def graph_query_amounts(captcha_queries, query_amounts):
@@ -10,9 +11,11 @@ def graph_query_amounts(captcha_queries, query_amounts):
     queries_and_amounts = sorted(queries_and_amounts, key=lambda x:x[1], reverse=True)
     captcha_queries, query_amounts = zip(*queries_and_amounts)
 
-    plt.bar(left=range(len(query_amounts)), tick_label=captcha_queries, height=query_amounts, log=True)
+    captcha_queries = [textwrap.fill(query, 10) for query in captcha_queries] 
+    plt.bar(left=range(len(query_amounts)), tick_label=captcha_queries, height=query_amounts)
+    plt.xlabel('CAPTCHA queries.')
+    plt.ylabel('Query frequencies.')
     
-
     plt.show()
 
 def graph_correct_captchas(captcha_queries, correct_captchas):
@@ -20,9 +23,8 @@ def graph_correct_captchas(captcha_queries, correct_captchas):
     queries_and_correct_scores = sorted(queries_and_correct_scores, key=lambda x:x[1], reverse=True)
     captcha_queries, correct_captchas = zip(*queries_and_correct_scores)
 
-    fig, axes = plt.subplots(1,1)
-    axes.bar(left=range(len(correct_captchas)), tick_label=captcha_queries, height=correct_captchas)
-    # axes.set_xticklabels(captcha_queries, rotation=15)
+    captcha_queries = [textwrap.fill(query, 10) for query in captcha_queries]
+    plt.bar(left=range(len(correct_captchas)), tick_label=captcha_queries, height=correct_captchas)
     plt.show()
 
 # graph_correct_captchas(captcha_queries, correct_captchas)
@@ -57,7 +59,7 @@ def show_checkbox_predictions(checkboxes, rows, cols, captcha_query, correct):
 
 
 def load_guess_file(captcha_query=None):
-    with open('../guesses.json', 'r') as predictions_file:
+    with open('../0.1-probability-4.8-guesses.json', 'r') as predictions_file:
         predictions = predictions_file.read()
         json_predictions = json.loads(predictions)
 

@@ -56,7 +56,7 @@ class CaptchaCracker:
         ImagePreprocessor.colour_images(image_paths)
 
     def get_predictions(self):
-        all_labels = self.neural_net.predict_image_classes()
+        all_labels = self.neural_net.predict_image_classes(self.captcha_element.captcha.checkboxes)
         all_label_names = LabelProcessor.convert_labels_to_label_names(all_labels)
         all_label_names = [LabelProcessor.conflate_labels(label_names) for label_names in all_label_names]
         # print("labels: ", all_label_names)
@@ -109,11 +109,12 @@ def start():
 
     while captcha_cracker.num_guesses < MAX_RUNS:
         try:
+            time.sleep(1)
             captcha_cracker.get_new_captcha()
             captcha_cracker.preprocess_images()
             captcha_cracker.get_predictions()
             matching_checkboxes = captcha_cracker.select_correct_checkboxes()
-            time.sleep(1)
+
             if matching_checkboxes:
                 if captcha_cracker.captcha_changed():
                     continue

@@ -42,8 +42,10 @@ class NeuralNetwork:
             self.train_network()
 
 
-    def predict_image_classes(self):
-        images = skimage.io.imread_collection('*_{0}.jpg'.format(config['image_size']))
+    def predict_image_classes(self, checkboxes):
+        image_paths = [checkbox.image_path for checkbox in checkboxes]
+        image_paths = FilepathPreprocessor.change_filepaths_after_resize(image_paths)
+        images = skimage.io.imread_collection(image_paths)
         image_array = skimage.io.concatenate_images(images)
         image_array = ImagePreprocessor.normalise(image_array)
 
@@ -53,7 +55,7 @@ class NeuralNetwork:
         for image_predictions in images_predictions:
             individual_predictions = []
             for i, probability in enumerate(image_predictions):
-                if probability > 0.1:
+                if probability > 0.01:
                     individual_predictions.append((i,probability))
 
             all_predictions.append(individual_predictions)
