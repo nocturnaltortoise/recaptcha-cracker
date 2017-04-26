@@ -6,21 +6,18 @@ import numpy as np
 import os.path
 from config import config
 import keras.applications.xception
+import keras.applications.vgg19
 
 
 class NeuralNetwork:
 
-    def __init__(self, weights_file=None, continue_training=False, start_epoch=None):
-        self.num_epochs = 5
+    def __init__(self, learning_rate, decay_rate, weights_file=None, continue_training=False, start_epoch=None):
+        self.num_epochs = 10
         self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
-        self.train_files, self.test_files, self.train_labels, self.test_labels = train_test_split(self.train_files,
+        self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
                                                                                                   self.train_labels,
                                                                                                   test_size=0.1,
                                                                                                   random_state=2134)
-        self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
-                                                                                                              self.train_labels,
-                                                                                                              test_size=0.2,
-                                                                                                              random_state=124)
         self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
         self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
         self.train_size = len(self.train_files)
@@ -39,8 +36,8 @@ class NeuralNetwork:
                 self.compile_network()
         else:
             self.model = self.xception(include_top=True)
-            self.compile_network()
-            self.train_network()
+            self.compile_network(learning_rate, decay_rate)
+            self.train_network(learning_rate, decay_rate)
 
 
     def predict_image_classes(self, checkboxes):
@@ -50,24 +47,29 @@ class NeuralNetwork:
         image_array = skimage.io.concatenate_images(images)
         image_array = ImagePreprocessor.normalise(image_array)
 
-        top_n = 5
+        probability_threshold = 0.01
         images_predictions = self.model.predict(image_array)
         all_predictions = []
         for image_predictions in images_predictions:
             individual_predictions = []
             for i, probability in enumerate(image_predictions):
-                if probability > 0.01:
-                    individual_predictions.append((i,probability))
+                if probability > probability_threshold:
+                    individual_predictions.append((i, probability))
 
             all_predictions.append(individual_predictions)
 
-        all_predictions = [[class_label for (class_label, probability) in sorted(individual_predictions, key=lambda x:x[1], reverse=True)] for individual_predictions in all_predictions]
+        labels = []
+        for individual_predictions in all_predictions:
+            sorted_predictions = sorted(individual_predictions, key=lambda x:x[1], reverse=True)
+            for (class_label, probability) in sorted_predictions:
+                labels.append(class_label)
 
-        return all_predictions
+        return labels
 
-    def compile_network(self):
-        learning_rate = 0.045
-        decay = 0.94
+    def compile_network(self, learning_rate, decay_rate):
+        learning_rate = learning_rate
+        decay = decay_rate
+        # adam = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
         sgd = keras.optimizers.SGD(lr=learning_rate, momentum=0.9, decay=decay, nesterov=True)
         self.model.compile(loss='categorical_crossentropy', optimizer=sgd,
                       metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
@@ -79,6 +81,18 @@ class NeuralNetwork:
         height = size[1]
         img_input = keras.layers.Input(shape=(size[0], size[1], 3))
 
+        # if include_top:
+        #     model = keras.applications.vgg19.VGG19(
+        #         include_top=True, 
+        #         weights=None, 
+        #         input_tensor=img_input,
+        #         classes=num_classes)
+        # else:
+        #     model = keras.applications.vgg19.VGG19(
+        #         include_top=False, 
+        #         weights=None, 
+        #         input_tensor=img_input,
+        #         pooling='avg')
         if include_top:
             model = keras.applications.xception.Xception(
                 include_top=True, 
@@ -126,7 +140,9 @@ class NeuralNetwork:
             if i + chunk_size > self.validation_size:
                 i = 0
 
-    def train_network(self, start_epoch=None):
+    def train_network(self, learning_rate, decay_rate, start_epoch=None):
+        # weights_path = "weights/{0}-rerun-test.h5".format(learning_rate)
+        # log_path = "logs/{0}-rerun-test".format(learning_rate)
         tensorboard = keras.callbacks.TensorBoard(log_dir=config['log_path'],
                                                   histogram_freq=0,
                                                   write_graph=True,
@@ -135,10 +151,17 @@ class NeuralNetwork:
                                                        verbose=1,
                                                        save_best_only=True)
         self.model.fit_generator(self.next_train_batch(chunk_size=16),
-                                 samples_per_epoch=self.train_size,
+                                 samples_per_epoch=int(self.train_size/5),
                                  nb_epoch=self.num_epochs,
-                                 validation_data=self.next_validation_batch(chunk_size=16),
-                                 nb_val_samples=self.validation_size,
+                                 validation_data=self.next_validation_batch(chunk_size=32),
+                                 nb_val_samples=int(self.validation_size/5),
                                  callbacks=[checkpointer, tensorboard])
 
-neural_net = NeuralNetwork()
+# random_decay_rates = [uniform_value for uniform_value in [0.1, 1]]
+# for decay_rate in random_decay_rates:
+#     learning_rate = 0.001
+#     # decay_rate = 1e-6
+#     print("Training with {0} decay rate.".format(decay_rate))
+learning_rate = 0.001
+decay_rate = 0.001
+neural_net = NeuralNetwork(learning_rate, decay_rate)
