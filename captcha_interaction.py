@@ -1,5 +1,6 @@
 import os
 import uuid
+import random
 from exceptions import *
 from PIL import Image
 import requests
@@ -121,13 +122,6 @@ class CaptchaElement:
         for checkbox in checkboxes:
             CaptchaElement.click_element(checkbox.element.first)
 
-    def pick_checkboxes_from_positions(self, positions):
-        image_checkboxes = self.captcha.checkboxes
-        checkboxes = []
-        for pos in positions:
-            checkboxes.append(image_checkboxes[pos])
-        return checkboxes
-
     def pick_checkboxes_matching_query(self):
         query = self.captcha.query
         matching_checkboxes = set()
@@ -141,6 +135,15 @@ class CaptchaElement:
                 elif label == query:
                     matching_checkboxes.add(checkbox)
         return matching_checkboxes
+
+    def pick_random_checkboxes(self):
+        checkboxes = self.captcha.checkboxes
+        num_to_pick = random.randint(0, len(checkboxes))
+        if num_to_pick != 0:
+            picked_checkboxes = random.sample(checkboxes, num_to_pick)
+        else:
+            picked_checkboxes = []
+        return picked_checkboxes
 
     def get_captcha_query(self, iframe):
         text_selector = 'div.rc-imageselect-desc-no-canonical > strong'
