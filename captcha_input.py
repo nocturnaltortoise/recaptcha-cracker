@@ -14,7 +14,7 @@ class CaptchaCracker:
     def __init__(self):
         self.captcha_element = None
         self.browser = splinter.Browser()
-        self.neural_net = nn.NeuralNetwork(config['weights_path'])
+        self.neural_net = nn.NeuralNetwork(weights_file=config['weights_path'])
         self.num_correct = 0
         self.num_guesses = 0
         self.old_captcha_urls = []

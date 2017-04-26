@@ -11,7 +11,7 @@ import keras.applications.vgg19
 
 class NeuralNetwork:
 
-    def __init__(self, learning_rate, decay_rate, weights_file=None, continue_training=False, start_epoch=None):
+    def __init__(self, learning_rate=0.001, decay_rate=0.001, weights_file=None, continue_training=False, start_epoch=None):
         if not weights_file or continue_training:
             self.num_epochs = 10
             self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
@@ -28,13 +28,13 @@ class NeuralNetwork:
             self.model = self.xception(include_top=True)
             if os.path.exists(weights_file):
                 self.model.load_weights(weights_file)
-                self.compile_network()
+                self.compile_network(learning_rate, decay_rate)
                 self.train_network(start_epoch)
         elif weights_file is not None:
             self.model = self.xception(include_top=True)
             if os.path.exists(weights_file):
                 self.model.load_weights(weights_file)
-                self.compile_network()
+                self.compile_network(learning_rate, decay_rate)
         else:
             self.model = self.xception(include_top=True)
             self.compile_network(learning_rate, decay_rate)
@@ -62,8 +62,10 @@ class NeuralNetwork:
         labels = []
         for individual_predictions in all_predictions:
             sorted_predictions = sorted(individual_predictions, key=lambda x:x[1], reverse=True)
+            image_labels = []
             for (class_label, probability) in sorted_predictions:
-                labels.append(class_label)
+                image_labels.append(class_label)
+            labels.append(image_labels)
 
         return labels
 
@@ -164,6 +166,6 @@ class NeuralNetwork:
 #     learning_rate = 0.001
 #     # decay_rate = 1e-6
 #     print("Training with {0} decay rate.".format(decay_rate))
-learning_rate = 0.001
-decay_rate = 0.001
-neural_net = NeuralNetwork(learning_rate, decay_rate)
+# learning_rate = 0.001
+# decay_rate = 0.001
+# neural_net = NeuralNetwork(learning_rate, decay_rate)
