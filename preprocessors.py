@@ -169,7 +169,7 @@ class LabelProcessor:
             filename, label = category_label
             if label not in seen_labels:
                 filename = LabelProcessor.parse_label_from_filename(filename)
-                with open("captcha-dataset-categories.txt", "a") as categories_file:
+                with open(config['categories_path'], "a") as categories_file:
                     categories_file.write(filename + " " + str(label) + "\n")
                 seen_labels.add(label)
 
@@ -194,7 +194,7 @@ class LabelProcessor:
     def convert_labels_to_label_names(labels):
         chosen_label_names = []
         for image_labels in labels:
-            labels_to_label_names = LabelProcessor.read_categories('captcha-dataset-categories.txt')
+            labels_to_label_names = LabelProcessor.read_categories(config['categories_path'])
 
             label_names = [labels_to_label_names[label] for label in image_labels]
 

@@ -87,8 +87,8 @@ def get_captcha_data(json_predictions, captcha_query, display_predictions=False)
     correct_captchas.append(correct_count)
 
 plt.rc('font', size=8)
-# CAPTCHA_QUERY = 'an apartment building'
-CAPTCHA_QUERY = None
+CAPTCHA_QUERY = 'mountain'
+# CAPTCHA_QUERY = None
 json_predictions = load_guess_file()
 
 query_amounts = []

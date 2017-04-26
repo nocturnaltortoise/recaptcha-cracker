@@ -50,6 +50,10 @@ class CaptchaCracker:
         captcha = self.captcha_element.captcha
         return any(captcha.image_url != checkbox.image_url for checkbox in captcha.checkboxes)
 
+    def refresh_checkboxes(self):
+        with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
+            self.captcha_element.get_image_checkboxes(iframe)
+
     def preprocess_images(self):
         image_paths = [checkbox.image_path for checkbox in self.captcha_element.captcha.checkboxes]
         ImagePreprocessor.resize_images(image_paths)
@@ -59,7 +63,6 @@ class CaptchaCracker:
         all_labels = self.neural_net.predict_image_classes(self.captcha_element.captcha.checkboxes)
         all_label_names = LabelProcessor.convert_labels_to_label_names(all_labels)
         all_label_names = [LabelProcessor.conflate_labels(label_names) for label_names in all_label_names]
-        # print("labels: ", all_label_names)
         for i, checkbox in enumerate(self.captcha_element.captcha.checkboxes):
             checkbox.predictions = all_label_names[i]
 
@@ -68,6 +71,12 @@ class CaptchaCracker:
         with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
             self.captcha_element.click_checkboxes(matching_checkboxes)
         return matching_checkboxes
+
+    def select_random_checkboxes(self):
+        random_checkboxes = self.captcha_element.pick_random_checkboxes()
+        with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
+            self.captcha_element.click_checkboxes(random_checkboxes)
+        return random_checkboxes
 
     def reload(self):
         with self.browser.get_iframe(self.captcha_element.captcha_iframe_name) as iframe:
@@ -91,7 +100,6 @@ class CaptchaCracker:
 
 
 def browser_reload():
-    delete_old_images()
     captcha_cracker.captcha_element.verify_attempts = 0
     captcha_cracker.captcha_element.browser.reload()
     start()
@@ -104,16 +112,20 @@ def start():
     if captcha_cracker.captcha_correct():
         captcha_cracker.num_guesses += 1
         captcha_cracker.num_correct += 1
+
         captcha_cracker.print_stats()
         browser_reload()
 
     while captcha_cracker.num_guesses < MAX_RUNS:
         try:
-            time.sleep(1)
             captcha_cracker.get_new_captcha()
             captcha_cracker.preprocess_images()
             captcha_cracker.get_predictions()
+            # matching_checkboxes = captcha_cracker.select_random_checkboxes()
             matching_checkboxes = captcha_cracker.select_correct_checkboxes()
+            time.sleep(1)
+            # refresh the checkboxes as the urls may have changed, and we need to check the new urls
+            captcha_cracker.refresh_checkboxes()
 
             if matching_checkboxes:
                 if captcha_cracker.captcha_changed():

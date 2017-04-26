@@ -12,16 +12,17 @@ import keras.applications.vgg19
 class NeuralNetwork:
 
     def __init__(self, learning_rate, decay_rate, weights_file=None, continue_training=False, start_epoch=None):
-        self.num_epochs = 10
-        self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
-        self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
-                                                                                                  self.train_labels,
-                                                                                                  test_size=0.1,
-                                                                                                  random_state=2134)
-        self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
-        self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
-        self.train_size = len(self.train_files)
-        self.validation_size = len(self.validation_files)
+        if not weights_file or continue_training:
+            self.num_epochs = 10
+            self.train_files, self.train_labels = LabelProcessor.read_labels([config['labels_path']])
+            self.train_files, self.validation_files, self.train_labels, self.validation_labels = train_test_split(self.train_files,
+                                                                                                      self.train_labels,
+                                                                                                      test_size=0.1,
+                                                                                                      random_state=2134)
+            self.train_labels = LabelProcessor.convert_to_one_hot(self.train_labels)
+            self.validation_labels = LabelProcessor.convert_to_one_hot(self.validation_labels)
+            self.train_size = len(self.train_files)
+            self.validation_size = len(self.validation_files)
 
         if weights_file is not None and continue_training:
             self.model = self.xception(include_top=True)
@@ -75,7 +76,8 @@ class NeuralNetwork:
                       metrics=['categorical_accuracy', 'top_k_categorical_accuracy'])
 
     def xception(self, include_top=True):
-        num_classes = self.train_labels.shape[1]
+        # num_classes = self.train_labels.shape[1]
+        num_classes = config['num_classes']
         size = config['image_size_tuple']
         width = size[0]
         height = size[1]
