@@ -161,11 +161,6 @@ class NeuralNetwork:
                                  nb_val_samples=int(self.validation_size/5),
                                  callbacks=[checkpointer, tensorboard])
 
-# random_decay_rates = [uniform_value for uniform_value in [0.1, 1]]
-# for decay_rate in random_decay_rates:
-#     learning_rate = 0.001
-#     # decay_rate = 1e-6
-#     print("Training with {0} decay rate.".format(decay_rate))
 # learning_rate = 0.001
 # decay_rate = 0.001
 # neural_net = NeuralNetwork(learning_rate, decay_rate)

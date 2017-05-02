@@ -122,6 +122,8 @@ def start():
             captcha_cracker.preprocess_images()
             captcha_cracker.get_predictions()
             # matching_checkboxes = captcha_cracker.select_random_checkboxes()
+            # uncomment to run random clicker, 
+            # comment get_predictions and select_correct_checkboxes as well if doing that
             matching_checkboxes = captcha_cracker.select_correct_checkboxes()
             time.sleep(1)
             # refresh the checkboxes as the urls may have changed, and we need to check the new urls
