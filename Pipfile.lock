@@ -1,0 +1,52 @@
+{
+    "default": {
+        "lazy-object-proxy": "==1.2.2",
+        "PyYAML": "==3.12",
+        "six": "==1.10.0",
+        "protobuf": "==3.2.0",
+        "keras": "*",
+        "selenium": "==3.4.1",
+        "PyWavelets": "==0.5.2",
+        "splinter": "==0.7.5",
+        "pylint": "==1.7.1",
+        "scikit-image": "==0.13.0",
+        "matplotlib": "==2.0.1",
+        "packaging": "==16.8",
+        "pytz": "==2017.2",
+        "networkx": "==1.11",
+        "python-dateutil": "==2.6.0",
+        "Theano": "==0.9.0",
+        "pyparsing": "==2.2.0",
+        "requests": "==2.13.0",
+        "decorator": "==4.0.11",
+        "Werkzeug": "==0.12.1",
+        "astroid": "==1.5.2",
+        "wrapt": "==1.10.10",
+        "Keras": "==2.0.4",
+        "inflection": "==0.3.1",
+        "scikit-learn": "==0.18.1",
+        "pillow": "*",
+        "mccabe": "==0.6.1",
+        "scipy": "==0.19.0",
+        "isort": "==4.2.5",
+        "appdirs": "==1.4.3",
+        "h5py": "==2.7.0",
+        "tensorflow": "==1.1.0",
+        "cycler": "==0.10.0",
+        "olefile": "==0.44",
+        "numpy": "==1.12.1",
+        "nltk": "==3.2.2",
+        "Pillow": "==4.1.1"
+    },
+    "develop": {},
+    "_meta": {
+        "sources": [
+            {
+                "url": "https://pypi.org/",
+                "verify_ssl": true
+            }
+        ],
+        "requires": {},
+        "Pipfile-sha256": "17faa9e4f45a0f7e99e7507afe13656ba29d9caa8b1ddaca5186a44de37daa74"
+    }
+}
