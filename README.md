@@ -1,5 +1,5 @@
 # recaptcha-cracker
-A program to automatically crack the challenges of Google's reCAPTCHA.
+A program to automatically crack the challenges of Google's reCAPTCHA. Made as part of my dissertation for my BSc in Computer Science at the University of Sheffield, with the help of my supervisor Dr Richard Clayton and my second marker Dr Tony Simons. The code of this project was written by me, but with guidance from them on the direction of my project, and feedback on my report.
 
 ## Installing
 - If you have Pipenv installed, there is an included Pipfile, so you can create a Python3 environment using ```pipenv --three```, and then you can run ```pipenv install```
